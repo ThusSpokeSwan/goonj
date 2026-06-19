@@ -1,5 +1,5 @@
 {
-  "name": "app",
+  "name": "goonj",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,17 +9,26 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/genai": "^2.8.0",
+    "@prisma/client": "^5.22.0",
+    "axios": "^1.18.0",
+    "html-to-text": "^10.0.0",
+    "lucide-react": "^1.21.0",
     "next": "16.2.9",
+    "pdf-parse": "^2.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/html-to-text": "^9.0.4",
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "prisma": "^5.22.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Scheme {
+  id                 String    @id @default(uuid())
+  title              String
+  ministry           String?
+  state              String    // "Central" or specific state name
+  minAge             Int?
+  maxAge             Int?
+  genderRestriction  String    // "Female", "Male", "All"
+  incomeCeiling      Float?
+  occupations        String    // Comma-separated list (e.g. "farmer,student,unemployed")
+  casteCategories    String    // Comma-separated list (e.g. "SC,ST,OBC,General")
+  expiryDate         DateTime?
+  applicationSteps   String    // Structured text describing how to apply
+  documentUrl        String?   // Original uploaded filename or scraped link
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+}
+
