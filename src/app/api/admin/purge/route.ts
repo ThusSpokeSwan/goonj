@@ -57,10 +57,11 @@ export async function GET() {
       message: `Successfully purged ${expiredSchemes.length} expired schemes from the catalog.`,
     });
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error during database purge:', error);
+    const message = error instanceof Error ? error.message : 'Failed to clean up expired schemes.';
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to clean up expired schemes.' },
+      { success: false, error: message },
       { status: 500 }
     );
   }

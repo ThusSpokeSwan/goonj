@@ -177,10 +177,11 @@ export async function POST(request: NextRequest) {
       totalEvaluated: schemesToEvaluate.length,
     });
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in eligibility matching route:', error);
+    const message = error instanceof Error ? error.message : 'Failed to analyze eligibility.';
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to analyze eligibility.' },
+      { success: false, error: message },
       { status: 500 }
     );
   }

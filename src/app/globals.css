@@ -75,3 +75,57 @@ h1, h2, h3, h4, h5, h6 {
   background: #3f3f46;
 }
 
+/* Accessibility Modes */
+.large-text {
+  font-size: 1.15rem !important;
+}
+.large-text h1 {
+  font-size: 3rem !important;
+}
+.large-text h2 {
+  font-size: 2.2rem !important;
+}
+.large-text h3 {
+  font-size: 1.6rem !important;
+}
+.large-text p, .large-text button, .large-text span, .large-text textarea, .large-text input, .large-text td, .large-text th, .large-text label, .large-text div {
+  font-size: 1.1rem !important;
+  line-height: 1.6 !important;
+}
+
+.high-contrast {
+  --background: #000000 !important;
+  --foreground: #ffffff !important;
+  --card-bg: #000000 !important;
+  --card-border: #ffff00 !important;
+  --accent-purple: #ffff00 !important;
+  --accent-teal: #00ffff !important;
+}
+
+.high-contrast * {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #ffff00 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  background-image: none !important;
+}
+
+.high-contrast input, .high-contrast textarea, .high-contrast select {
+  border: 2px solid #ffff00 !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast button {
+  border: 2px solid #ffff00 !important;
+  color: #ffff00 !important;
+  background-color: #000000 !important;
+}
+
+.high-contrast button:hover {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+}
+
+

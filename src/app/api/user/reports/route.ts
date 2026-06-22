@@ -1,0 +1,55 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { cookies } from 'next/headers';
+
+export async function GET() {
+  try {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('goonj_session')?.value;
+
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const reports = await prisma.downloadedReport.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return NextResponse.json({ success: true, reports });
+  } catch (error) {
+    console.error('Fetch reports error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to fetch reports list';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('goonj_session')?.value;
+
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { schemeTitle, language } = await request.json();
+    if (!schemeTitle || !language) {
+      return NextResponse.json({ success: false, error: 'Scheme Title and Language are required' }, { status: 400 });
+    }
+
+    const report = await prisma.downloadedReport.create({
+      data: {
+        userId,
+        schemeTitle,
+        language
+      }
+    });
+
+    return NextResponse.json({ success: true, report });
+  } catch (error) {
+    console.error('Report log error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to log downloaded report';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}

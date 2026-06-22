@@ -1,5 +1,4 @@
-import fs from 'fs/promises';
-import path from 'path';
+import { prisma } from './db';
 
 export interface VectorRecord {
   id: string;
@@ -7,8 +6,6 @@ export interface VectorRecord {
   text: string;
   embedding: number[];
 }
-
-const VECTORS_FILE = path.join(process.cwd(), 'prisma', 'vectors.json');
 
 /**
  * Calculates the cosine similarity score between two vector arrays of the same length.
@@ -31,55 +28,27 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
 
 export class LocalVectorStore {
   /**
-   * Reads the vector store file from disk. Returns empty list if file doesn't exist.
+   * Adds multiple text chunks with their embeddings to the database vector store.
    */
-  private static async load(): Promise<VectorRecord[]> {
+  public static async addChunks(
+    chunks: { schemeId: string; text: string; embedding: number[] }[]
+  ): Promise<void> {
     try {
-      const content = await fs.readFile(VECTORS_FILE, 'utf-8');
-      return JSON.parse(content) as VectorRecord[];
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        return [];
-      }
-      console.error('Error loading vector store file:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Overwrites the vector store file on disk.
-   */
-  private static async save(records: VectorRecord[]): Promise<void> {
-    try {
-      // Ensure the directory exists
-      await fs.mkdir(path.dirname(VECTORS_FILE), { recursive: true });
-      await fs.writeFile(VECTORS_FILE, JSON.stringify(records, null, 2), 'utf-8');
+      await prisma.schemeVector.createMany({
+        data: chunks.map(chunk => ({
+          schemeId: chunk.schemeId,
+          text: chunk.text,
+          embedding: JSON.stringify(chunk.embedding),
+        }))
+      });
     } catch (error) {
-      console.error('Error saving vector store file:', error);
+      console.error('Error adding chunks to db vector store:', error);
       throw error;
     }
   }
 
   /**
-   * Adds multiple text chunks with their embeddings to the vector store.
-   */
-  public static async addChunks(
-    chunks: { schemeId: string; text: string; embedding: number[] }[]
-  ): Promise<void> {
-    const records = await this.load();
-    const newRecords = chunks.map(chunk => ({
-      id: crypto.randomUUID(),
-      schemeId: chunk.schemeId,
-      text: chunk.text,
-      embedding: chunk.embedding,
-    }));
-    
-    records.push(...newRecords);
-    await this.save(records);
-  }
-
-  /**
-   * Performs cosine similarity search across matching scheme IDs.
+   * Performs cosine similarity search across matching scheme IDs directly in database.
    * If a list of targetSchemeIds is passed, only searches within those schemes (Metadata filtering).
    */
   public static async search(
@@ -87,41 +56,57 @@ export class LocalVectorStore {
     targetSchemeIds?: string[],
     topK: number = 5
   ): Promise<{ schemeId: string; text: string; score: number }[]> {
-    const records = await this.load();
-    
-    // Step 1: Filter records by scheme IDs (Metadata Filter integration)
-    const filteredRecords = targetSchemeIds
-      ? records.filter(r => targetSchemeIds.includes(r.schemeId))
-      : records;
+    try {
+      // Step 1: Filter records by scheme IDs directly in the DB query
+      const records = await prisma.schemeVector.findMany({
+        where: targetSchemeIds ? {
+          schemeId: { in: targetSchemeIds }
+        } : undefined
+      });
+        
+      // Step 2: Compute cosine similarity for each candidate chunk
+      const results = records.map(record => {
+        const embedding = JSON.parse(record.embedding) as number[];
+        const score = cosineSimilarity(queryVector, embedding);
+        return {
+          schemeId: record.schemeId,
+          text: record.text,
+          score,
+        };
+      });
       
-    // Step 2: Compute cosine similarity for each candidate chunk
-    const results = filteredRecords.map(record => {
-      const score = cosineSimilarity(queryVector, record.embedding);
-      return {
-        schemeId: record.schemeId,
-        text: record.text,
-        score,
-      };
-    });
-    
-    // Step 3: Sort by descending score and take top K
-    results.sort((a, b) => b.score - a.score);
-    return results.slice(0, topK);
+      // Step 3: Sort by descending score and take top K
+      results.sort((a, b) => b.score - a.score);
+      return results.slice(0, topK);
+    } catch (error) {
+      console.error('Error searching vectors in db:', error);
+      return [];
+    }
   }
 
   /**
    * Deletes all vectors corresponding to a specific scheme.
    */
   public static async deleteBySchemeId(schemeId: string): Promise<void> {
-    const records = await this.load();
-    const filtered = records.filter(r => r.schemeId !== schemeId);
-    await this.save(filtered);
+    try {
+      await prisma.schemeVector.deleteMany({
+        where: { schemeId }
+      });
+    } catch (error) {
+      console.error('Error deleting vectors by schemeId:', error);
+      throw error;
+    }
   }
 
   /**
    * Clears the entire database of vectors.
    */
   public static async clearAll(): Promise<void> {
-    await this.save([]);
+    try {
+      await prisma.schemeVector.deleteMany({});
+    } catch (error) {
+      console.error('Error clearing all vectors:', error);
+      throw error;
+    }
   }
 }

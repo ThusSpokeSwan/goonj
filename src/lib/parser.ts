@@ -48,9 +48,10 @@ export async function extractTextFromUrl(url: string): Promise<string> {
     });
     
     return text || '';
-  } catch (error: any) {
-    console.error(`Error scraping url ${url}:`, error.message);
-    throw new Error(`Failed to crawl URL: ${error.message}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Error scraping url ${url}:`, message);
+    throw new Error(`Failed to crawl URL: ${message}`);
   }
 }
 

@@ -3,13 +3,13 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
+
 model Scheme {
-  id                 String    @id @default(uuid())
+  id                 String             @id @default(uuid())
   title              String
   ministry           String?
   state              String    // "Central" or specific state name
@@ -24,5 +24,69 @@ model Scheme {
   documentUrl        String?   // Original uploaded filename or scraped link
   isActive           Boolean   @default(true)
   createdAt          DateTime  @default(now())
+  savedSchemes       SavedScheme[]
+  feedbacks          Feedback[]
+  vectors            SchemeVector[]
 }
+
+model SchemeVector {
+  id        String   @id @default(uuid())
+  schemeId  String
+  text      String
+  embedding String   // Stored as a JSON-serialized string of float array
+  scheme    Scheme   @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id                 String             @id @default(uuid())
+  phone              String             @unique
+  name               String
+  createdAt          DateTime           @default(now())
+  savedSchemes       SavedScheme[]
+  searchHistories    SearchHistory[]
+  reports            DownloadedReport[]
+}
+
+model SavedScheme {
+  id        String   @id @default(uuid())
+  userId    String
+  schemeId  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheme    Scheme   @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  @@unique([userId, schemeId])
+}
+
+model SearchHistory {
+  id              String   @id @default(uuid())
+  userId          String?
+  query           String?
+  state           String?
+  age             Int?
+  gender          String?
+  income          Float?
+  occupation      String?
+  caste           String?
+  detectedLanguage String
+  createdAt       DateTime @default(now())
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DownloadedReport {
+  id          String   @id @default(uuid())
+  userId      String
+  schemeTitle String
+  language    String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  schemeId  String
+  helpful   Boolean
+  createdAt DateTime @default(now())
+  scheme    Scheme   @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+}
+
 

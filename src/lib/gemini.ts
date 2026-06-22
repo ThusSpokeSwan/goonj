@@ -5,6 +5,43 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || ''
 });
 
+async function callGeminiWithFallback(params: {
+  contents: string;
+  config: any;
+}): Promise<any> {
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+  let lastError: any = null;
+
+  for (const model of models) {
+    let attempts = 0;
+    const maxAttempts = 2;
+    while (attempts < maxAttempts) {
+      try {
+        console.log(`[src/lib/gemini] Attempting Gemini call with model ${model} (attempt ${attempts + 1})...`);
+        const res = await ai.models.generateContent({
+          model,
+          contents: params.contents,
+          config: params.config
+        });
+        return res;
+      } catch (err: any) {
+        attempts++;
+        lastError = err;
+        console.warn(`[src/lib/gemini] Model ${model} failed (attempt ${attempts}):`, err.message || err);
+        
+        const errStr = String(err.message || err);
+        const isTransient = errStr.includes('503') || errStr.includes('429') || errStr.includes('UNAVAILABLE') || err.status === 503;
+        if (isTransient) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } else {
+          break; // Try next model immediately
+        }
+      }
+    }
+  }
+  throw lastError || new Error('All model attempts failed');
+}
+
 /**
  * Generate a vector embedding for a given text chunk using text-embedding-004.
  */
@@ -68,8 +105,7 @@ Ensure the output matches the required schema. For numeric fields like age and i
 `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+    const response = await callGeminiWithFallback({
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -141,9 +177,10 @@ User Demographics Profile:
 - Interests: ${needsAndInterests}
 
 Below are the candidate schemes and the official guideline text chunks retrieved from the database.
-For each scheme, verify if the user truly qualifies based on the guidelines.
+For each scheme, verify if the user truly qualifies based on the demographic and criteria guidelines described in the chunks.
+Important: Focus strictly on the demographic and criteria guidelines (like state, age, gender, income, caste, and student status) to determine eligibility. Stated interests are provided for context, but do NOT mark a user as ineligible ('isEligible': false) just because the scheme's scope doesn't align with their search interests. If they satisfy the demographics and status rules, they are eligible.
 If the user qualifies, output 'isEligible': true. Detail exactly why they qualify, list the benefits, and synthesize a clear step-by-step application instruction checklist.
-If they do not qualify, output 'isEligible': false, and explain which criterion they did not meet.
+If they do not qualify, output 'isEligible': false, and explain which criterion (e.g. income limit, age limit, gender restriction, or state residency) they did not meet. Do not invent or hallucinate restrictions that are not in the provided chunks.
 
 CRITICAL: Translate all output texts (title, whyEligible, benefits, stepsToApply) into the user's target language: "${targetLanguage}" (e.g. Hindi, Marathi, Telugu, Spanish). 
 If the target language is English or not supported, output in the requested language but use clear and accessible phrasing.
@@ -163,8 +200,7 @@ Format your output as a JSON list matching the schema.
 `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+    const response = await callGeminiWithFallback({
       contents: prompt,
       config: {
         responseMimeType: 'application/json',

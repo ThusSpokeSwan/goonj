@@ -1,8 +1,6 @@
+/* eslint-disable */
 const { PrismaClient } = require('@prisma/client');
 const { GoogleGenAI } = require('@google/genai');
-const fs = require('fs/promises');
-const path = require('path');
-const crypto = require('crypto');
 
 // Initialize Prisma
 const prisma = new PrismaClient();
@@ -10,8 +8,6 @@ const prisma = new PrismaClient();
 // Initialize Gemini
 const apiKey = process.env.GEMINI_API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
-
-const VECTORS_FILE = path.join(__dirname, 'vectors.json');
 
 const SAMPLE_SCHEMES = [
   {
@@ -108,18 +104,11 @@ async function seed() {
 
   console.log("Seeding databases...");
   try {
-    // Clean current db
+    // Clean current db (schemeVector will cascade delete, but we can clear explicitly first)
+    await prisma.schemeVector.deleteMany({});
     await prisma.scheme.deleteMany({});
     
-    // Clean vector database
-    try {
-      await fs.writeFile(VECTORS_FILE, JSON.stringify([], null, 2));
-      console.log("Cleared vectors file.");
-    } catch (err) {
-      // ignore
-    }
-
-    const vectorRecords = [];
+    let totalVectorsCount = 0;
 
     for (const data of SAMPLE_SCHEMES) {
       const { guidelines, ...metadata } = data;
@@ -146,19 +135,19 @@ async function seed() {
         });
 
         if (response.embeddings?.[0]?.values) {
-          vectorRecords.push({
-            id: crypto.randomUUID(),
-            schemeId: scheme.id,
-            text: chunk,
-            embedding: response.embeddings[0].values
+          await prisma.schemeVector.create({
+            data: {
+              schemeId: scheme.id,
+              text: chunk,
+              embedding: JSON.stringify(response.embeddings[0].values)
+            }
           });
+          totalVectorsCount++;
         }
       }
     }
 
-    // Save vector file
-    await fs.writeFile(VECTORS_FILE, JSON.stringify(vectorRecords, null, 2), 'utf-8');
-    console.log(`Successfully seeded ${SAMPLE_SCHEMES.length} schemes with ${vectorRecords.length} vector embeddings!`);
+    console.log(`Successfully seeded ${SAMPLE_SCHEMES.length} schemes with ${totalVectorsCount} vector embeddings in the database!`);
 
   } catch (error) {
     console.error("Error seeding databases:", error);

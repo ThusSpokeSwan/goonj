@@ -21,21 +21,20 @@ try {
   console.error('Failed to load .env manually:', e.message);
 }
 
-const { PrismaClient } = require('@prisma/client');
+const { GoogleGenAI } = require('@google/genai');
+
+const apiKey = process.env.GEMINI_API_KEY || '';
+const ai = new GoogleGenAI({ apiKey });
 
 async function main() {
-  const prisma = new PrismaClient();
   try {
-    console.log("Connecting to database...");
-    const schemes = await prisma.scheme.findMany();
-    console.log(`Success! Total schemes: ${schemes.length}`);
-    for (const s of schemes) {
-      console.log(JSON.stringify(s, null, 2));
+    const response = await ai.models.list();
+    console.log('Available models:');
+    for await (const m of response) {
+      console.log(`- Name: ${m.name}, Display: ${m.displayName}, Actions: ${m.supportedActions.join(', ')}`);
     }
   } catch (error) {
-    console.error("Failed to connect or query:", error);
-  } finally {
-    await prisma.$disconnect();
+    console.error('Error listing models:', error);
   }
 }
 

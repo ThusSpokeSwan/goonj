@@ -1,7 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Volume2, VolumeX, CheckCircle2, ChevronRight, ChevronLeft, RotateCcw, ShieldCheck, Loader2, Sparkles, Building, Landmark, Settings } from 'lucide-react';
+import { 
+  Mic, MicOff, Volume2, CheckCircle2, ChevronLeft, 
+  RotateCcw, ShieldCheck, Loader2, Sparkles, Building, Landmark, 
+  User, LogOut, Bookmark, Share2, Printer, Check, HeartHandshake, 
+  HelpCircle, Eye, AlertCircle, Phone, X
+} from 'lucide-react';
 
 interface EligibilityResult {
   schemeId: string;
@@ -21,126 +26,308 @@ interface UserProfile {
   occupation: string;
   disabilityStatus: string;
   disabilityPercentage: number;
+  needsAndInterests: string;
 }
 
-const QUESTIONS = [
-  {
-    id: 1,
-    question: "What state do you live in?",
-    voicePrompt: "What state do you live in? For example, Maharashtra, Uttar Pradesh, or Central.",
-    placeholder: "Speak or type your state name...",
-  },
-  {
-    id: 2,
-    question: "How old are you?",
-    voicePrompt: "How old are you? Please speak your age in years.",
-    placeholder: "Speak or type your age (e.g. 45)...",
-  },
-  {
-    id: 3,
-    question: "What is your gender?",
-    voicePrompt: "What is your gender? Male, Female, or other.",
-    placeholder: "Speak or type your gender...",
-  },
-  {
-    id: 4,
-    question: "What is your caste category?",
-    voicePrompt: "What is your caste category? General, OBC, SC, or ST.",
-    placeholder: "Speak or type General, OBC, SC, or ST...",
-  },
-  {
-    id: 5,
-    question: "What is your family's annual income?",
-    voicePrompt: "What is your family's total annual household income in rupees?",
-    placeholder: "Speak or type your annual income (e.g. 1,50,000)...",
-  },
-  {
-    id: 6,
-    question: "What is your occupation?",
-    voicePrompt: "What is your occupation or job? For example: farmer, student, unemployed, or merchant.",
-    placeholder: "Speak or type your occupation...",
-  },
-  {
-    id: 7,
-    question: "Do you have any disability?",
-    voicePrompt: "Do you have any physical disability? Say No, or say Yes with the percentage if you know it.",
-    placeholder: "Speak or type 'No' or 'Yes, 40%'...",
-  },
-  {
-    id: 8,
-    question: "What specific assistance or scheme are you looking for?",
-    voicePrompt: "What help do you need? For example: farming seeds, a house, business capital, or school scholarship.",
-    placeholder: "Tell us what you are looking for...",
-  }
-];
+interface SavedScheme {
+  id: string;
+  title: string;
+  ministry: string | null;
+  state: string;
+  minAge: number | null;
+  maxAge: number | null;
+  genderRestriction: string;
+  incomeCeiling: number | null;
+  occupations: string;
+  casteCategories: string;
+  expiryDate: string | null;
+  documentUrl: string | null;
+  isActive: boolean;
+}
 
-export default function CheckerPage() {
-  const [appState, setAppState] = useState<'intro' | 'interview' | 'loading' | 'results'>('intro');
-  const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<string[]>(Array(8).fill(''));
+interface SearchHistoryItem {
+  id: string;
+  query: string | null;
+  state: string | null;
+  age: number | null;
+  gender: string | null;
+  income: number | null;
+  occupation: string | null;
+  caste: string | null;
+  detectedLanguage: string;
+  createdAt: string;
+}
+
+interface DownloadedReportItem {
+  id: string;
+  schemeTitle: string;
+  language: string;
+  createdAt: string;
+}
+
+interface DBUser {
+  id: string;
+  phone: string;
+  name: string;
+  createdAt: string;
+  _count: {
+    savedSchemes: number;
+    searchHistories: number;
+  };
+}
+
+export default function GoonjPortal() {
+  // Navigation & Views
+  const [activeTab, setActiveTab] = useState<'home' | 'chat' | 'results' | 'dashboard'>('home');
+  
+  // Auth state
+  const [user, setUser] = useState<DBUser | null>(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginName, setLoginName] = useState('');
+  const [loginPhone, setLoginPhone] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Accessibility settings
+  const [largeText, setLargeText] = useState(false);
+  const [highContrast, setHighContrast] = useState(false);
+  const [voiceNav, setVoiceNav] = useState(false);
+
+  // Chat/Discovery flow states
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
+  const [chatProfile, setChatProfile] = useState<Partial<UserProfile>>({});
+  const [chatTurn, setChatTurn] = useState(1);
+  const [chatDetectedLanguage, setChatDetectedLanguage] = useState('English');
+  const [chatDetectedDialect, setChatDetectedDialect] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+
+  // Results State
+  const [matchedSchemes, setMatchedSchemes] = useState<EligibilityResult[]>([]);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState<{ [key: string]: 'yes' | 'no' }>({});
+  const [activeShareMenu, setActiveShareMenu] = useState<string | null>(null);
+
+  // Dashboard Lists
+  const [savedSchemes, setSavedSchemes] = useState<SavedScheme[]>([]);
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
+  const [downloadedReports, setDownloadedReports] = useState<DownloadedReportItem[]>([]);
+  const [isDashLoading, setIsDashLoading] = useState(false);
+
+  // Speech Recognition & Synthesis references
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [speakingSchemeId, setSpeakingSchemeId] = useState<string | null>(null);
+  const [speechError, setSpeechError] = useState<string | null>(null);
 
-  // Results from backend
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [detectedLanguage, setDetectedLanguage] = useState('en');
-  const [matchedSchemes, setMatchedSchemes] = useState<EligibilityResult[]>([]);
-  const [message, setMessage] = useState('');
-
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const recognitionRef = useRef<any>(null);
+  const voiceNavRecognitionRef = useRef<any>(null);
   const synthesisRef = useRef<any>(null);
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  const tempPauseVoiceNav = useRef(false);
+  const voiceNavRef = useRef(voiceNav);
 
   useEffect(() => {
-    // Check Speech Recognition support
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        setSpeechSupported(true);
-        const rec = new SpeechRecognition();
-        rec.continuous = false;
-        rec.interimResults = false;
-        rec.lang = 'en-IN'; // defaults to English-India, LLM will handle translation auto-detection
-        
-        rec.onresult = (event: any) => {
-          const transcript = event.results[0][0].transcript;
-          updateAnswer(currentStep, transcript);
-          setIsRecording(false);
-        };
+    voiceNavRef.current = voiceNav;
+  }, [voiceNav]);
 
-        rec.onerror = (event: any) => {
-          console.error('Speech recognition error:', event.error);
-          setIsRecording(false);
-        };
+  const handleSendAnswerRef = useRef<any>(null);
+  useEffect(() => {
+    handleSendAnswerRef.current = handleSendAnswer;
+  });
 
-        rec.onend = () => {
-          setIsRecording(false);
-        };
+  const getLanguageCode = (lang: string) => {
+    const nameLower = lang.toLowerCase();
+    if (nameLower.includes('hindi') || nameLower.includes('hi') || nameLower.includes('bhojpuri')) return 'hi-IN';
+    if (nameLower.includes('marathi') || nameLower.includes('mr')) return 'mr-IN';
+    if (nameLower.includes('tamil') || nameLower.includes('ta')) return 'ta-IN';
+    if (nameLower.includes('telugu') || nameLower.includes('te')) return 'te-IN';
+    if (nameLower.includes('bengali') || nameLower.includes('bn')) return 'bn-IN';
+    if (nameLower.includes('gujarati') || nameLower.includes('gu')) return 'gu-IN';
+    if (nameLower.includes('kannada') || nameLower.includes('kn')) return 'kn-IN';
+    if (nameLower.includes('malayalam') || nameLower.includes('ml')) return 'ml-IN';
+    if (nameLower.includes('punjabi') || nameLower.includes('pa')) return 'pa-IN';
+    if (nameLower.includes('odia') || nameLower.includes('or')) return 'or-IN';
+    return 'en-IN';
+  };
 
-        recognitionRef.current = rec;
+
+
+  // Auth Functions
+  const fetchSession = async () => {
+    try {
+      const res = await fetch('/api/auth/session');
+      const data = await res.json();
+      if (data.success && data.user) {
+        setUser(data.user);
+        loadDashboardData();
       }
-      synthesisRef.current = window.speechSynthesis;
+    } catch (err) {
+      console.error('Session load failed:', err);
     }
-  }, [currentStep]);
+  };
 
-  // Handle Question audio guidance when step shifts
-  useEffect(() => {
-    if (appState === 'interview' && autoSpeak) {
-      speakText(QUESTIONS[currentStep].voicePrompt);
+  const loadDashboardData = async () => {
+    setIsDashLoading(true);
+    try {
+      const [savedRes, historyRes, reportsRes] = await Promise.all([
+        fetch('/api/user/saved-schemes'),
+        fetch('/api/user/search-history'),
+        fetch('/api/user/reports')
+      ]);
+
+      const savedData = await savedRes.json();
+      const historyData = await historyRes.json();
+      const reportsData = await reportsRes.json();
+
+      if (savedData.success) setSavedSchemes(savedData.schemes || []);
+      if (historyData.success) setSearchHistory(historyData.history || []);
+      if (reportsData.success) setDownloadedReports(reportsData.reports || []);
+    } catch (err) {
+      console.error('Failed to load dashboard logs:', err);
+    } finally {
+      setIsDashLoading(false);
     }
-  }, [currentStep, appState, autoSpeak]);
+  };
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginName.trim() || !loginPhone.trim()) {
+      setAuthError('Please fill out both Name and Phone fields.');
+      return;
+    }
+    if (loginPhone.length < 10) {
+      setAuthError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    setAuthError(null);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: loginName, phone: loginPhone })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser(data.user);
+        setShowLoginModal(false);
+        setLoginName('');
+        setLoginPhone('');
+        loadDashboardData();
+        setActiveTab('dashboard');
+      } else {
+        setAuthError(data.error || 'Login failed.');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'An error occurred.';
+      setAuthError(message);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      setUser(null);
+      setSavedSchemes([]);
+      setSearchHistory([]);
+      setDownloadedReports([]);
+      setActiveTab('home');
+      speakText('Logged out successfully');
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
+  };
+
+  // Conversational Assistant Functions
+  const handleStartChat = () => {
+    stopSpeaking();
+    setChatMessages([
+      {
+        role: 'assistant',
+        content: 'नमस्ते! गूंज (GOONJ) में आपका स्वागत है। मुझे अपने बारे में बताएं, जैसे कि आपकी उम्र, आप किस राज्य में रहते हैं, और आपको किस प्रकार की सरकारी मदद चाहिए। मैं आपके लिए सही योजनाएं खोज निकालूँगा।\n\nHello! Welcome to Goonj. Tell us about yourself (e.g. your age, state, and what assistance you need) in your language, and I will search for matching schemes.'
+      }
+    ]);
+    setChatProfile({});
+    setChatTurn(1);
+    setChatDetectedLanguage('English');
+    setChatDetectedDialect('');
+    setChatInput('');
+    setMatchedSchemes([]);
+    setFeedbackSubmitted({});
+    setActiveTab('chat');
+  };
+
+  const handleSendAnswer = async (inputText = chatInput) => {
+    if (!inputText.trim()) return;
+    
+    // Add user message to history
+    const updatedMessages = [...chatMessages, { role: 'user' as const, content: inputText }];
+    setChatMessages(updatedMessages);
+    setChatInput('');
+    setIsChatLoading(true);
+    stopSpeaking();
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: inputText,
+          history: updatedMessages.slice(0, -1),
+          profile: chatProfile,
+          turnNumber: chatTurn,
+          detectedLanguage: chatDetectedLanguage
+        })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setChatProfile(data.profile);
+        setChatDetectedLanguage(data.detectedLanguage);
+        if (data.dialect) setChatDetectedDialect(data.dialect);
+
+        if (data.isComplete) {
+          setMatchedSchemes(data.schemes || []);
+          setChatMessages([
+            ...updatedMessages,
+            { role: 'assistant', content: data.nextQuestion || 'We have analyzed your profile. Here are your matched entitlement programs.' }
+          ]);
+          setActiveTab('results');
+          loadDashboardData(); // Reload history on dashboard if logged in
+        } else {
+          setChatMessages([
+            ...updatedMessages,
+            { role: 'assistant', content: data.nextQuestion }
+          ]);
+          setChatTurn(chatTurn + 1);
+        }
+      } else {
+        alert(data.error || 'Assistant failed to process. Please retry.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error connecting to assistant.');
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  // Text to Speech
   const speakText = (text: string, lang = 'en-IN') => {
     if (!synthesisRef.current) return;
-    synthesisRef.current.cancel(); // Cancel current readouts
-    const utterance = new SpeechSynthesisUtterance(text);
+    synthesisRef.current.cancel();
     
-    // Choose appropriate voice language if regional
-    if (lang.startsWith('hi')) utterance.lang = 'hi-IN';
-    else if (lang.startsWith('mr')) utterance.lang = 'mr-IN';
-    else if (lang.startsWith('te')) utterance.lang = 'te-IN';
-    else utterance.lang = lang;
+    // Split text into smaller chunks to avoid length limits in some SpeechSynthesis implementations
+    const cleanText = text.replace(/[*#]/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+
+    // Map language names to codes
+    utterance.lang = getLanguageCode(lang);
 
     utterance.onend = () => {
       setSpeakingSchemeId(null);
@@ -158,79 +345,36 @@ export default function CheckerPage() {
   const toggleRecording = () => {
     if (!recognitionRef.current) return;
     
+    setSpeechError(null);
     if (isRecording) {
       recognitionRef.current.stop();
       setIsRecording(false);
     } else {
       stopSpeaking();
-      recognitionRef.current.start();
-      setIsRecording(true);
-    }
-  };
-
-  const updateAnswer = (index: number, text: string) => {
-    const updated = [...answers];
-    updated[index] = text;
-    setAnswers(updated);
-  };
-
-  const handleNext = () => {
-    stopSpeaking();
-    if (currentStep < 7) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      handleSubmit();
-    }
-  };
-
-  const handleBack = () => {
-    stopSpeaking();
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const startInterview = () => {
-    setAppState('interview');
-    setCurrentStep(0);
-    setAnswers(Array(8).fill(''));
-  };
-
-  const handleSubmit = async () => {
-    stopSpeaking();
-    setAppState('loading');
-    
-    try {
-      const res = await fetch('/api/match', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers }),
-      });
       
-      const data = await res.json();
-      
-      if (data.success) {
-        setProfile(data.profile);
-        setDetectedLanguage(data.detectedLanguage);
-        setMatchedSchemes(data.schemes || []);
-        setMessage(data.message || '');
-        setAppState('results');
-        
-        // Welcome text readout
-        if (data.schemes?.length > 0) {
-          const countText = data.schemes.length === 1 ? 'one scheme' : `${data.schemes.length} schemes`;
-          speakText(`Assessment complete. We found ${countText} that you qualify for.`, data.detectedLanguage);
-        } else {
-          speakText(`Assessment complete. Unfortunately, we did not find matching schemes for your demographics.`, data.detectedLanguage);
+      // Suspend voice navigation background listener if active to avoid conflicts
+      if (voiceNavRef.current) {
+        tempPauseVoiceNav.current = true;
+        if (voiceNavRecognitionRef.current) {
+          try {
+            voiceNavRecognitionRef.current.stop();
+          } catch (e) {
+            console.error('Failed to stop voice nav before active recording:', e);
+          }
         }
-      } else {
-        alert(data.error || 'Failed to match eligibility. Please try again.');
-        setAppState('interview');
       }
-    } catch (error) {
-      console.error(error);
-      alert('An error occurred. Check backend console.');
-      setAppState('interview');
+
+      try {
+        // Set dynamic language code based on current chat detected language
+        const langCode = getLanguageCode(chatDetectedLanguage);
+        recognitionRef.current.lang = langCode;
+        console.log('Starting Speech Recognition with language:', langCode);
+
+        recognitionRef.current.start();
+        setIsRecording(true);
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
@@ -239,310 +383,1126 @@ export default function CheckerPage() {
       stopSpeaking();
     } else {
       setSpeakingSchemeId(scheme.schemeId);
-      const textToRead = `${scheme.title}. Ministry: ${scheme.ministry}. Why you qualify: ${scheme.whyEligible}. Benefit: ${scheme.benefits}. Steps to apply: ${scheme.stepsToApply.join('. ')}`;
-      speakText(textToRead, detectedLanguage);
+      const textToRead = `${scheme.title}. Department: ${scheme.ministry}. Why you qualify: ${scheme.whyEligible}. Benefit details: ${scheme.benefits}. Application steps: ${scheme.stepsToApply.join('. ')}`;
+      speakText(textToRead, chatDetectedLanguage);
     }
   };
 
-  return (
-    <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 py-8 md:py-16 justify-center">
-      {/* Header bar */}
-      <div className="flex justify-between items-center mb-10">
-        <div className="flex items-center gap-2">
-          <Sparkles className="text-purple-400" size={24} />
-          <span className="font-extrabold text-xl tracking-tight text-white">Goonj</span>
-        </div>
+  // User Actions
+  const handleToggleBookmark = async (schemeId: string) => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    const isBookmarked = savedSchemes.some(s => s.id === schemeId);
+    try {
+      if (isBookmarked) {
+        const res = await fetch(`/api/user/saved-schemes?schemeId=${schemeId}`, {
+          method: 'DELETE'
+        });
+        if (res.ok) {
+          setSavedSchemes(savedSchemes.filter(s => s.id !== schemeId));
+        }
+      } else {
+        const res = await fetch('/api/user/saved-schemes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ schemeId })
+        });
+        if (res.ok) {
+          loadDashboardData();
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleFeedback = async (schemeId: string, helpful: boolean) => {
+    try {
+      const res = await fetch('/api/user/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schemeId, helpful })
+      });
+      if (res.ok) {
+        setFeedbackSubmitted({
+          ...feedbackSubmitted,
+          [schemeId]: helpful ? 'yes' : 'no'
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDownloadReport = async (primaryScheme: EligibilityResult) => {
+    // Save report data to localStorage
+    const printData = {
+      profile: chatProfile,
+      schemes: matchedSchemes,
+      language: chatDetectedLanguage
+    };
+    localStorage.setItem('goonj_print_data', JSON.stringify(printData));
+
+    // Open print view in new window
+    window.open('/print', '_blank');
+
+    // Log download to DB if user is logged in
+    if (user) {
+      try {
+        await fetch('/api/user/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            schemeTitle: primaryScheme.title,
+            language: chatDetectedLanguage
+          })
+        });
+        loadDashboardData();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  const getShareLink = (scheme: EligibilityResult, type: 'whatsapp' | 'telegram') => {
+    const text = encodeURIComponent(
+      `🔔 *${scheme.title}* (${scheme.ministry || 'Government Scheme'})\n\n` +
+      `💡 *Why you qualify:* ${scheme.whyEligible}\n\n` +
+      `🎁 *Benefits:* ${scheme.benefits}\n\n` +
+      `📌 Discover every scheme you qualify for in your language using GOONJ!`
+    );
+    if (type === 'whatsapp') return `https://api.whatsapp.com/send?text=${text}`;
+    return `https://t.me/share/url?url=${encodeURIComponent(window.location.origin)}&text=${text}`;
+  };
+
+  // Load user session on mount
+  useEffect(() => {
+    /* eslint-disable-next-line react-hooks/set-state-in-effect */
+    fetchSession();
+    
+    // Check Speech Recognition support
+    if (typeof window !== 'undefined') {
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+      const win = window as any;
+      const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        setSpeechSupported(true);
+        const rec = new SpeechRecognition();
+        rec.continuous = false;
+        rec.interimResults = false;
+        rec.lang = 'en-IN'; // Default to mixed English/Indian speech capture
         
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setAutoSpeak(!autoSpeak)}
-            className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-colors"
-            title={autoSpeak ? "Disable voice prompt auto-play" : "Enable voice prompt auto-play"}
-          >
-            {autoSpeak ? <Volume2 size={16} /> : <VolumeX size={16} />}
-          </button>
-          <a
-            href="/admin"
-            className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-colors"
-            title="Admin Dashboard"
-          >
-            <Settings size={16} />
-          </a>
+        /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+        rec.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          setChatInput(transcript);
+          setIsRecording(false);
+          // Auto submit spoken answer after a short pause
+          setTimeout(() => {
+            handleSendAnswerRef.current(transcript);
+          }, 400);
+        };
+
+        /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+        rec.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsRecording(false);
+          if (event.error === 'network') {
+            setSpeechError('Speech recognition requires internet. Type your answer.');
+          } else if (event.error === 'not-allowed') {
+            setSpeechError('Microphone permission denied.');
+          } else {
+            setSpeechError(`Speech error (${event.error}). Please type.`);
+          }
+        };
+
+        rec.onend = () => {
+          setIsRecording(false);
+          // Resume background voice navigation if it was suspended
+          if (voiceNavRef.current && tempPauseVoiceNav.current) {
+            tempPauseVoiceNav.current = false;
+            if (voiceNavRecognitionRef.current) {
+              try {
+                voiceNavRecognitionRef.current.start();
+              } catch (e) {
+                console.error('Failed to restart voice nav after active recording:', e);
+              }
+            }
+          }
+        };
+
+        recognitionRef.current = rec;
+      }
+      synthesisRef.current = window.speechSynthesis;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Read out Assistant questions when they appear
+  useEffect(() => {
+    if (activeTab === 'chat' && chatMessages.length > 0 && autoSpeak) {
+      const lastMessage = chatMessages[chatMessages.length - 1];
+      if (lastMessage.role === 'assistant') {
+        speakText(lastMessage.content, chatDetectedLanguage);
+      }
+    }
+  }, [chatMessages, activeTab, autoSpeak, chatDetectedLanguage]);
+
+  // Voice Navigation listener
+  useEffect(() => {
+    if (!speechSupported) return;
+    
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+    const win = window as any;
+    const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition;
+    
+    if (voiceNav) {
+      const navRec = new SpeechRecognition();
+      navRec.continuous = true;
+      navRec.interimResults = false;
+      navRec.lang = 'en-IN';
+      
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+      navRec.onresult = (event: any) => {
+        const lastIndex = event.results.length - 1;
+        const transcript = event.results[lastIndex][0].transcript.toLowerCase().trim();
+        console.log('Voice Navigation Heard:', transcript);
+
+        if (transcript.includes('go home') || transcript.includes('home')) {
+          setActiveTab('home');
+          speakText('Going home');
+        } else if (transcript.includes('dashboard') || transcript.includes('profile')) {
+          setActiveTab('dashboard');
+          speakText('Opening dashboard');
+        } else if (transcript.includes('restart') || transcript.includes('reset')) {
+          handleStartChat();
+        } else if (transcript.includes('logout') || transcript.includes('log out')) {
+          handleLogout();
+        } else if (transcript.includes('print') || transcript.includes('download')) {
+          if (matchedSchemes.length > 0) {
+            handleDownloadReport(matchedSchemes[0]);
+          }
+        }
+      };
+
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+      navRec.onerror = (err: any) => {
+        console.error('Voice navigation error:', err.error);
+      };
+
+      navRec.onend = () => {
+        // Keep listening if voiceNav is still true and not suspended for active recording
+        if (voiceNav && !tempPauseVoiceNav.current) {
+          try { navRec.start(); } catch { }
+        }
+      };
+
+      try {
+        navRec.start();
+        voiceNavRecognitionRef.current = navRec;
+      } catch {
+        // Ignored
+      }
+    } else {
+      if (voiceNavRecognitionRef.current) {
+        voiceNavRecognitionRef.current.stop();
+        voiceNavRecognitionRef.current = null;
+      }
+    }
+
+    return () => {
+      if (voiceNavRecognitionRef.current) {
+        voiceNavRecognitionRef.current.stop();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceNav, matchedSchemes]);
+
+  return (
+    <div className={`min-h-screen flex flex-col font-sans selection:bg-purple-500 selection:text-white transition-all duration-300 ${
+      largeText ? 'large-text' : ''
+    } ${
+      highContrast ? 'high-contrast' : ''
+    }`}>
+      {/* Floating Accessibility Settings Widget */}
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 bg-zinc-900/90 border border-zinc-800 p-2.5 rounded-2xl shadow-xl backdrop-blur-md print:hidden">
+        <div className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest text-center border-b border-zinc-800 pb-1.5 mb-1">
+          Accessibility
         </div>
+        <button
+          onClick={() => setLargeText(!largeText)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            largeText ? 'bg-purple-600 text-white shadow-md' : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+          }`}
+          title="Toggle Large Text Mode for elderly & low-vision users"
+        >
+          Text Size: {largeText ? 'Large' : 'Normal'}
+        </button>
+        <button
+          onClick={() => setHighContrast(!highContrast)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            highContrast ? 'bg-purple-600 text-white shadow-md' : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+          }`}
+          title="Toggle High Contrast Mode for visually impaired users"
+        >
+          Contrast: {highContrast ? 'High' : 'Normal'}
+        </button>
+        <button
+          onClick={() => {
+            setVoiceNav(!voiceNav);
+            if (!voiceNav) speakText('Voice navigation enabled. Speak commands like home, dashboard, or restart anytime.');
+            else speakText('Voice navigation disabled');
+          }}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+            voiceNav ? 'bg-teal-600 text-white shadow-md animate-pulse' : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+          }`}
+          title="Toggle Voice Navigation (Say commands like: home, dashboard, restart)"
+        >
+          <Mic size={10} /> Voice Nav: {voiceNav ? 'On' : 'Off'}
+        </button>
       </div>
 
-      {/* Screen 1: Introduction */}
-      {appState === 'intro' && (
-        <div className="text-center py-12 md:py-20 glass-panel rounded-3xl p-8 border border-zinc-800">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-950/50 border border-purple-800/50 text-purple-300 mb-6">
-            <Sparkles size={12} /> AI Entitlement Agent
-          </span>
-          
-          <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mb-6 leading-tight max-w-xl mx-auto">
-            Discover Government Schemes You Qualify For
-          </h1>
-          
-          <p className="text-zinc-400 text-md md:text-lg max-w-lg mx-auto mb-10 leading-relaxed">
-            Answer 8 simple voice questions in any language. Our RAG engine scans hundreds of state and central directives to build your custom timeline.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={startInterview}
-              className="px-8 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-lg shadow-purple-900/30 transition-all transform hover:-translate-y-0.5 text-md"
-            >
-              Start Spoken Assessment
-            </button>
-            <a
-              href="/admin"
-              className="px-8 py-3.5 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800 font-semibold rounded-xl transition-all text-md"
-            >
-              Admin Feed Panel
-            </a>
+      {/* Main Header / Navigation Bar */}
+      <header className="sticky top-0 z-40 bg-zinc-950/80 border-b border-zinc-900 backdrop-blur-md print:hidden">
+        <div className="max-w-6xl mx-auto w-full px-4 h-16 flex items-center justify-between">
+          <div 
+            onClick={() => setActiveTab('home')}
+            className="flex items-center gap-2 cursor-pointer group"
+          >
+            <div className="bg-gradient-to-tr from-purple-600 to-teal-500 p-1.5 rounded-xl group-hover:scale-105 transition-transform">
+              <Sparkles className="text-white" size={18} />
+            </div>
+            <span className="font-extrabold text-xl tracking-tight text-white flex items-center gap-1">
+              GOONJ <span className="text-[10px] bg-purple-950 border border-purple-800 text-purple-300 font-bold px-1.5 py-0.5 rounded uppercase">गूंज</span>
+            </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-6 max-w-lg mx-auto mt-16 pt-8 border-t border-zinc-800 text-zinc-400 text-xs">
-            <div>
-              <div className="font-extrabold text-white text-lg mb-1">8 Questions</div>
-              <div>Short Interview</div>
-            </div>
-            <div>
-              <div className="font-extrabold text-white text-lg mb-1">100+ Dialects</div>
-              <div>Multilingual Search</div>
-            </div>
-            <div>
-              <div className="font-extrabold text-white text-lg mb-1">1-Click Read</div>
-              <div>Voice Playback</div>
-            </div>
+          <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-zinc-400">
+            <button onClick={() => setActiveTab('home')} className={`hover:text-white transition-colors ${activeTab === 'home' ? 'text-purple-400' : ''}`}>Home</button>
+            <button onClick={handleStartChat} className={`hover:text-white transition-colors ${activeTab === 'chat' ? 'text-purple-400' : ''}`}>Voice Finder</button>
+            <a href="/admin" className="hover:text-white transition-colors">Admin Panel</a>
+          </nav>
+
+          <div className="flex items-center gap-3">
+            {user ? (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                    activeTab === 'dashboard' 
+                      ? 'bg-purple-600/20 border-purple-500 text-purple-300' 
+                      : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800'
+                  }`}
+                >
+                  <User size={14} /> {user.name}
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-red-400 transition-colors"
+                  title="Logout"
+                >
+                  <LogOut size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowLoginModal(true)}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-purple-900/20"
+              >
+                Log In / Register
+              </button>
+            )}
           </div>
         </div>
-      )}
+      </header>
 
-      {/* Screen 2: The Interview Flow */}
-      {appState === 'interview' && (
-        <div className="glass-panel rounded-3xl p-6 md:p-10 border border-zinc-800 flex flex-col min-h-[420px] justify-between">
-          {/* Progress Indicators */}
-          <div className="mb-6">
-            <div className="flex justify-between items-center text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-              <span>Question {currentStep + 1} of 8</span>
-              <span className="text-purple-400">{Math.round(((currentStep + 1) / 8) * 100)}% Complete</span>
-            </div>
-            {/* Custom bar */}
-            <div className="w-full bg-zinc-950 h-2 rounded-full overflow-hidden flex gap-0.5 p-0.5 border border-zinc-800">
-              {Array(8).fill(0).map((_, idx) => (
-                <div
-                  key={idx}
-                  className={`h-full flex-1 rounded-full transition-all duration-300 ${
-                    idx <= currentStep ? 'bg-purple-500 shadow-md shadow-purple-500/30' : 'bg-zinc-800'
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Question Core */}
-          <div className="flex-1 flex flex-col justify-center text-center max-w-xl mx-auto w-full my-6">
-            <h2 className="text-2xl md:text-3xl font-bold text-white mb-2 leading-snug">
-              {QUESTIONS[currentStep].question}
-            </h2>
-            <p className="text-zinc-500 text-xs mb-8 italic">
-              Speak clearly into your microphone in your preferred language
+      {/* Hero Section & Landing Tab */}
+      {activeTab === 'home' && (
+        <main className="flex-1 flex flex-col items-center print:hidden">
+          {/* Hero Header */}
+          <section className="max-w-6xl w-full px-4 pt-16 md:pt-24 pb-12 text-center flex flex-col items-center">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-purple-950/60 border border-purple-800/60 text-purple-300 mb-6 animate-pulse">
+              <Sparkles size={12} /> AI-Powered Voice Entitlement Finder
+            </span>
+            
+            <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white leading-tight max-w-3xl mb-6">
+              Government Benefits, <br/>
+              <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-teal-400 bg-clip-text text-transparent">
+                Explained In Your Language
+              </span>
+            </h1>
+            
+            <p className="text-zinc-400 text-base md:text-lg max-w-xl leading-relaxed mb-10">
+              Speak naturally, answer a few questions, and instantly discover all central and state government schemes you qualify for.
             </p>
 
-            {/* Answer Display Area */}
-            <div className="relative mb-6">
-              <textarea
-                value={answers[currentStep]}
-                onChange={e => updateAnswer(currentStep, e.target.value)}
-                placeholder={QUESTIONS[currentStep].placeholder}
-                rows={3}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-4 pr-10 text-white font-medium placeholder-zinc-600 focus:outline-none focus:border-purple-500 text-sm md:text-md leading-relaxed resize-none"
-              />
-              <button
-                onClick={() => speakText(QUESTIONS[currentStep].voicePrompt)}
-                className="absolute right-3 top-3 text-zinc-600 hover:text-zinc-400"
-                title="Hear question again"
-              >
-                <Volume2 size={16} />
-              </button>
+            {/* Pulsing microphone centered illustration */}
+            <div className="relative mb-12 group cursor-pointer" onClick={handleStartChat}>
+              {/* Voice waves circles */}
+              <div className="absolute inset-0 bg-purple-500/20 rounded-full blur-2xl scale-125 opacity-70 group-hover:scale-150 transition-transform duration-500" />
+              <div className="relative w-28 h-28 md:w-32 md:h-32 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center shadow-2xl animate-voice-pulse hover:border-purple-500/50 transition-colors">
+                <Mic size={42} className="text-purple-400 group-hover:text-purple-300 transition-colors" />
+              </div>
+              <div className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-4 group-hover:text-zinc-300 transition-colors">
+                Click to Speak Naturally
+              </div>
             </div>
 
-            {/* Pulsing Mic Visualizer */}
-            <div className="flex justify-center items-center gap-4 mb-4">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
-                onClick={toggleRecording}
-                disabled={!speechSupported}
-                className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${
-                  isRecording 
-                    ? 'bg-teal-500 text-white animate-voice-pulse shadow-lg shadow-teal-500/20' 
-                    : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800'
-                }`}
+                onClick={handleStartChat}
+                className="px-8 py-3.5 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-purple-900/30 transition-all text-sm"
               >
-                {isRecording ? <MicOff size={24} /> : <Mic size={24} />}
+                Continue Without Login
+              </button>
+              <button
+                onClick={() => {
+                  if (user) {
+                    setActiveTab('dashboard');
+                  } else {
+                    setShowLoginModal(true);
+                  }
+                }}
+                className="px-8 py-3.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold rounded-xl transition-all text-sm"
+              >
+                View Dashboard
               </button>
             </div>
-            {!speechSupported && (
-              <span className="text-[10px] text-red-400">Speech recognition not supported in this browser. Please type.</span>
-            )}
-            {isRecording && (
-              <span className="text-xs text-teal-400 font-semibold animate-pulse tracking-wide">Listening... Speak now</span>
-            )}
-          </div>
+          </section>
 
-          {/* Navigation Controls */}
-          <div className="flex justify-between items-center border-t border-zinc-850 pt-6 mt-6">
-            <button
-              onClick={handleBack}
-              disabled={currentStep === 0}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-zinc-400 hover:text-white hover:bg-zinc-900/50 rounded-lg transition-all disabled:opacity-30 disabled:hover:text-zinc-400"
-            >
-              <ChevronLeft size={16} /> Back
-            </button>
+          {/* How Goonj Works */}
+          <section className="max-w-6xl w-full px-4 py-16 border-t border-zinc-900">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-white text-center mb-12">
+              How Goonj Works
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                { step: "1", title: "Speak In Your Language", desc: "Just describe your situation using the microphone. Talk naturally in Hindi, Bhojpuri, Tamil, or any regional tongue." },
+                { step: "2", title: "Answer Simple Questions", desc: "No complex forms. Our friendly AI reads out a few missing demographic questions one at a time." },
+                { step: "3", title: "AI Checks Eligibility", desc: "Goonj instantly cross-references criteria databases and filters state and central scheme directives." },
+                { step: "4", title: "Get Matching Schemes", desc: "View detailed results, benefits breakdowns, required documents, and get exact step-by-step checklists." }
+              ].map((s, idx) => (
+                <div key={idx} className="glass-panel glass-panel-hover rounded-2xl p-6 relative overflow-hidden flex flex-col h-full">
+                  <div className="absolute -right-4 -bottom-6 text-8xl font-black text-purple-950/20 select-none">
+                    {s.step}
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-purple-950/60 border border-purple-800/40 text-purple-300 font-bold flex items-center justify-center text-xs mb-4">
+                    {s.step}
+                  </div>
+                  <h3 className="font-bold text-white text-base mb-2">{s.title}</h3>
+                  <p className="text-zinc-400 text-xs leading-relaxed flex-1">{s.desc}</p>
+                </div>
+              ))}
+            </div>
+          </section>
 
-            <button
-              onClick={handleNext}
-              disabled={!answers[currentStep].trim()}
-              className="flex items-center gap-1.5 px-5 py-2 text-sm font-bold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all shadow-md shadow-purple-900/10 disabled:opacity-40"
-            >
-              {currentStep === 7 ? 'Check Entitlements' : 'Next'} <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
-      )}
+          {/* Why Goonj */}
+          <section className="max-w-6xl w-full px-4 py-16 border-t border-zinc-900 bg-gradient-to-b from-zinc-950/50 to-transparent">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-white text-center mb-12">
+              Why Goonj
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+              {[
+                { title: "Voice-First & Multilingual", desc: "Designed for citizens who struggle with typing. Supports Hindi, English, Bhojpuri, Bengali, Tamil, Telugu, and all major Indian languages." },
+                { title: "Central & State Cataloging", desc: "Automatically matches state-specific criteria (like Bihar or Maharashtra welfare schemes) alongside nation-wide schemes." },
+                { title: "Exact Step-by-Step Guidance", desc: "Tells you precisely WHY you qualify to earn trust, lists required files, and maps application timelines." },
+                { title: "Full Audio Playback Assistance", desc: "Every benefit detail and instruction checklist can be read aloud in your own language with human-like voices." },
+                { title: "Personalized History Logs", desc: "Register in 5 seconds with a mobile number to bookmark schemes, save search profiles, and download summaries." },
+                { title: "100% Free & Secure", desc: "Built with transparency and privacy. No registration fees, no hidden portals. Entirely accessibility-friendly." }
+              ].map((b, idx) => (
+                <div key={idx} className="p-4 border-l border-purple-500/30">
+                  <h3 className="font-extrabold text-white text-base mb-2 flex items-center gap-1.5">
+                    <CheckCircle2 size={16} className="text-teal-400" />
+                    {b.title}
+                  </h3>
+                  <p className="text-zinc-400 text-xs leading-relaxed">{b.desc}</p>
+                </div>
+              ))}
+            </div>
+          </section>
 
-      {/* Screen 3: Loader */}
-      {appState === 'loading' && (
-        <div className="text-center py-20 glass-panel rounded-3xl p-8 border border-zinc-800 max-w-xl mx-auto w-full">
-          <Loader2 className="animate-spin text-purple-400 mx-auto mb-6" size={48} />
-          <h2 className="text-2xl font-bold text-white mb-2">Analyzing Demographics</h2>
-          <p className="text-zinc-400 text-sm max-w-xs mx-auto leading-relaxed">
-            Parsing answers, filtering state criteria, and fetching official scheme chunks...
-          </p>
-        </div>
-      )}
-
-      {/* Screen 4: Results Dashboard */}
-      {appState === 'results' && (
-        <div className="space-y-8">
-          {/* User profile recap */}
-          {profile && (
-            <div className="glass-panel rounded-2xl p-5 border border-zinc-800 flex flex-wrap gap-4 text-xs text-zinc-400 items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex px-2 py-0.5 bg-purple-950/40 text-purple-300 font-bold rounded border border-purple-800/30">
-                  Target Profile
+          {/* Language support Section */}
+          <section className="max-w-6xl w-full px-4 py-16 border-t border-zinc-900">
+            <h2 className="text-xl font-bold text-zinc-400 text-center mb-8 uppercase tracking-widest">
+              Supported Regional Languages
+            </h2>
+            <div className="flex flex-wrap gap-2.5 justify-center max-w-2xl mx-auto">
+              {[
+                "Hindi (हिंदी)", "English", "Bhojpuri (भोजपुरी)", "Bengali (বাংলা)", 
+                "Tamil (தமிழ்)", "Telugu (తెలుగు)", "Marathi (मराठी)", "Gujarati (ગુજરાતી)", 
+                "Kannada (ಕನ್ನಡ)", "Malayalam (മലയാളം)", "Punjabi (ਪੰਜਾਬੀ)", "Odia (ଓଡ଼ିଆ)",
+                "Any Regional Language..."
+              ].map((lang, idx) => (
+                <span 
+                  key={idx}
+                  className="px-3.5 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-purple-600/50 text-xs font-medium cursor-default transition-all hover:scale-105"
+                >
+                  {lang}
                 </span>
-                <span className="font-semibold text-white">{profile.state}</span>
-                <span className="text-zinc-600">|</span>
-                <span className="font-semibold text-white">{profile.age} Years</span>
-                <span className="text-zinc-600">|</span>
-                <span className="font-semibold text-white">{profile.gender}</span>
-                <span className="text-zinc-600">|</span>
-                <span className="font-semibold text-white">{profile.occupation}</span>
-              </div>
-              <div className="text-zinc-500">
-                Income: <span className="font-bold text-white">₹{profile.annualIncome.toLocaleString()}</span> | Lang: <span className="uppercase text-white font-bold">{detectedLanguage}</span>
-              </div>
+              ))}
             </div>
-          )}
+          </section>
 
-          {/* Scheme display core */}
-          {matchedSchemes.length === 0 ? (
-            <div className="text-center py-20 glass-panel rounded-3xl p-8 border border-zinc-800">
-              <Landmark size={48} className="text-zinc-600 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-zinc-400 mb-2">No Matching Entitlements</h2>
-              <p className="text-zinc-500 text-sm max-w-xs mx-auto mb-8 leading-relaxed">
-                {message || "We analyzed the catalog but could not find schemes matching your profile filters."}
-              </p>
-              <button
-                onClick={startInterview}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-semibold text-sm transition-all"
-              >
-                <RotateCcw size={14} /> Retry Spoken Check
-              </button>
+          {/* Trust Section */}
+          <section className="max-w-6xl w-full px-4 py-12 border-t border-zinc-900 bg-zinc-950/20 text-center">
+            <div className="flex flex-wrap gap-8 justify-center items-center text-xs text-zinc-400 font-semibold uppercase tracking-wider">
+              <span className="flex items-center gap-1.5"><Landmark size={14} className="text-purple-400" /> Central Govt Schemes</span>
+              <span className="flex items-center gap-1.5"><Building size={14} className="text-purple-400" /> State Govt Schemes</span>
+              <span className="flex items-center gap-1.5"><Mic size={14} className="text-purple-400" /> Voice Assistance</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 size={14} className="text-purple-400" /> Accessibility Friendly</span>
             </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <ShieldCheck size={20} className="text-teal-400" />
-                  Your Qualified Entitlements ({matchedSchemes.length})
-                </h2>
+          </section>
+        </main>
+      )}
+
+      {/* Conversational Assistant Tab */}
+      {activeTab === 'chat' && (
+        <main className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 py-8 md:py-12 justify-center print:hidden">
+          <div className="glass-panel rounded-3xl p-6 md:p-8 border border-zinc-800 flex flex-col justify-between min-h-[480px]">
+            {/* Header info */}
+            <div className="flex justify-between items-center border-b border-zinc-900 pb-4 mb-4 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white flex items-center gap-1"><Sparkles size={12} className="text-purple-400 animate-spin" /> Conversational Discovery</span>
+                <span className="text-zinc-600">|</span>
+                <span className="text-zinc-400">Questions: {chatTurn}/8</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 text-zinc-400">
+                  <Volume2 size={12} /> Auto Speak:
+                  <button 
+                    onClick={() => setAutoSpeak(!autoSpeak)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${autoSpeak ? 'bg-purple-900 border border-purple-800 text-purple-300' : 'bg-zinc-950 text-zinc-500'}`}
+                  >
+                    {autoSpeak ? 'On' : 'Off'}
+                  </button>
+                </div>
+                {chatDetectedLanguage && (
+                  <span className="bg-zinc-950 border border-zinc-800 px-2 py-0.5 rounded text-zinc-300 uppercase font-bold text-[10px]">
+                    {chatDetectedLanguage} {chatDetectedDialect && `(${chatDetectedDialect})`}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Conversation Messages Stream */}
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1 py-4 max-h-[300px]">
+              {chatMessages.map((msg, idx) => (
+                <div 
+                  key={idx}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-[85%] rounded-2xl p-4 text-xs md:text-sm font-medium leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'bg-purple-600 text-white rounded-tr-none'
+                      : 'bg-zinc-900 border border-zinc-850 text-zinc-200 rounded-tl-none'
+                  }`}>
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+
+              {isChatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-zinc-900 border border-zinc-850 rounded-2xl rounded-tl-none p-4 flex items-center gap-2 text-zinc-400 text-xs">
+                    <Loader2 size={14} className="animate-spin text-purple-400" />
+                    <span>Analyzing responses...</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Error display */}
+            {speechError && (
+              <div className="p-3 bg-red-950/20 border border-red-900/50 rounded-xl flex items-center gap-2 text-red-300 text-xs mb-4">
+                <AlertCircle size={14} />
+                <span>{speechError}</span>
+              </div>
+            )}
+
+            {/* Voice Input Panel */}
+            <div className="border-t border-zinc-900 pt-6">
+              <div className="flex justify-center mb-6">
                 <button
-                  onClick={startInterview}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-xs text-zinc-400 hover:text-white transition-colors"
+                  onClick={toggleRecording}
+                  disabled={!speechSupported || isChatLoading}
+                  className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${
+                    isRecording 
+                      ? 'bg-teal-500 text-white animate-voice-pulse shadow-lg shadow-teal-500/20' 
+                      : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800 disabled:opacity-40'
+                  }`}
+                  title={isRecording ? 'Stop Recording' : 'Speak your answer'}
+                >
+                  {isRecording ? <MicOff size={24} /> : <Mic size={24} />}
+                </button>
+              </div>
+
+              {isRecording && (
+                <div className="text-center text-xs font-bold text-teal-400 animate-pulse uppercase tracking-wider mb-4">
+                  Listening... Speak now
+                </div>
+              )}
+
+              {/* Text Input Back-up */}
+              <div className="flex gap-2">
+                <textarea
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendAnswer();
+                    }
+                  }}
+                  placeholder="Or type your response here in any language (e.g. Hindi, Bhojpuri, Bengali, English)..."
+                  rows={2}
+                  className="flex-1 bg-zinc-950 border border-zinc-850 rounded-xl p-3 pr-10 text-white placeholder-zinc-700 focus:outline-none focus:border-purple-600 text-xs md:text-sm leading-relaxed resize-none"
+                  disabled={isChatLoading || isRecording}
+                />
+                <button
+                  onClick={() => handleSendAnswer()}
+                  disabled={!chatInput.trim() || isChatLoading || isRecording}
+                  className="px-4 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold rounded-xl text-xs md:text-sm flex items-center justify-center transition-all"
+                >
+                  Send
+                </button>
+              </div>
+
+              {/* Nav controls */}
+              <div className="flex justify-between items-center mt-6 text-xs text-zinc-500">
+                <button
+                  onClick={() => {
+                    stopSpeaking();
+                    setActiveTab('home');
+                  }}
+                  className="flex items-center gap-1 hover:text-white"
+                >
+                  <ChevronLeft size={14} /> Exit Voice Assistant
+                </button>
+                <button
+                  onClick={handleStartChat}
+                  className="flex items-center gap-1 hover:text-white"
                 >
                   <RotateCcw size={12} /> Restart
                 </button>
               </div>
+            </div>
+          </div>
+        </main>
+      )}
 
+      {/* Results View Tab */}
+      {activeTab === 'results' && (
+        <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-8 md:py-12 flex flex-col gap-6 print:p-0">
+          {/* Print preview banner */}
+          <div className="glass-panel rounded-2xl p-5 border border-zinc-800 flex flex-wrap gap-4 text-xs text-zinc-400 items-center justify-between print:hidden">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex px-2 py-0.5 bg-purple-950/60 border border-purple-800/40 text-purple-300 font-bold rounded">
+                Matched Profile
+              </span>
+              <span className="font-semibold text-white">{chatProfile.state}</span>
+              <span className="text-zinc-700">|</span>
+              <span className="font-semibold text-white">{chatProfile.age} Years</span>
+              <span className="text-zinc-700">|</span>
+              <span className="font-semibold text-white">{chatProfile.gender}</span>
+              <span className="text-zinc-700">|</span>
+              <span className="font-semibold text-white capitalize">{chatProfile.occupation || 'citizen'}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  if (matchedSchemes.length > 0) {
+                    handleDownloadReport(matchedSchemes[0]);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-xs text-white font-bold rounded-xl transition-all"
+              >
+                <Printer size={12} className="text-purple-400" /> Save Report (PDF)
+              </button>
+              <button
+                onClick={handleStartChat}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-zinc-850 hover:bg-zinc-900 text-[10px] text-zinc-500 hover:text-white transition-colors"
+              >
+                <RotateCcw size={12} /> Restart
+              </button>
+            </div>
+          </div>
+
+          {/* Results Summary */}
+          {matchedSchemes.length === 0 ? (
+            <div className="text-center py-20 glass-panel rounded-3xl p-8 border border-zinc-800 print:hidden">
+              <Landmark size={48} className="text-zinc-700 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-zinc-400 mb-2">No Qualifying Entitlements</h2>
+              <p className="text-zinc-500 text-sm max-w-xs mx-auto mb-8 leading-relaxed">
+                We scanned our active directories but could not find schemes matching your demographics profile.
+              </p>
+              <button
+                onClick={handleStartChat}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs transition-all"
+              >
+                <RotateCcw size={14} /> Retry Voice Discovery
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center print:hidden">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <ShieldCheck size={18} className="text-teal-400 animate-bounce" />
+                  Your Qualified Entitlements ({matchedSchemes.length})
+                </h2>
+              </div>
+
+              {/* Scheme Cards mapping */}
               {matchedSchemes.map((scheme, idx) => (
-                <div key={scheme.schemeId || idx} className="glass-panel rounded-2xl p-6 border border-zinc-800 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1.5 h-full bg-purple-500" />
+                <div 
+                  key={scheme.schemeId || idx} 
+                  className="glass-panel rounded-2xl p-6 border border-zinc-800 relative overflow-hidden print:border-zinc-300 print:bg-white print:text-black print:shadow-none print:break-inside-avoid"
+                >
+                  {/* Left accent strip (hidden on print) */}
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-purple-500 to-teal-500 print:hidden" />
                   
-                  {/* Top line metadata */}
+                  {/* Card Header */}
                   <div className="flex justify-between items-start gap-4 mb-4">
                     <div>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-300 bg-purple-950/40 border border-purple-800/20 px-2 py-0.5 rounded mb-2">
-                        <Building size={10} /> {scheme.ministry || 'Government Department'}
-                      </span>
-                      <h3 className="text-xl font-bold text-white leading-snug">
+                      <div className="flex flex-wrap gap-2 items-center mb-1">
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-purple-300 bg-purple-950/60 border border-purple-800/40 px-2 py-0.5 rounded uppercase print:border-zinc-300 print:bg-zinc-100 print:text-zinc-600">
+                          <Building size={10} /> {scheme.ministry || 'Government Department'}
+                        </span>
+                        <span className="inline-flex px-2 py-0.5 text-[9px] font-bold text-teal-300 bg-teal-950/60 border border-teal-800/40 rounded uppercase print:border-zinc-300 print:bg-zinc-100 print:text-zinc-600">
+                          Active
+                        </span>
+                      </div>
+                      <h3 className="text-lg md:text-xl font-bold text-white leading-snug print:text-black">
                         {scheme.title}
                       </h3>
                     </div>
 
-                    <button
-                      onClick={() => handlePlayScheme(scheme)}
-                      className={`p-2.5 rounded-xl border transition-all ${
-                        speakingSchemeId === scheme.schemeId
-                          ? 'bg-teal-500 border-teal-400 text-white animate-pulse'
-                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'
-                      }`}
-                      title={speakingSchemeId === scheme.schemeId ? "Stop readout" : "Listen to details aloud"}
-                    >
-                      <Volume2 size={18} />
-                    </button>
+                    {/* Speaker & Action Buttons */}
+                    <div className="flex gap-2 print:hidden shrink-0">
+                      <button
+                        onClick={() => handleToggleBookmark(scheme.schemeId)}
+                        className={`p-2.5 rounded-xl border transition-all ${
+                          savedSchemes.some(s => s.id === scheme.schemeId)
+                            ? 'bg-purple-600 border-purple-500 text-white'
+                            : 'bg-zinc-900 border-zinc-850 text-zinc-400 hover:text-white'
+                        }`}
+                        title="Bookmark Scheme"
+                      >
+                        <Bookmark size={16} />
+                      </button>
+                      <button
+                        onClick={() => handlePlayScheme(scheme)}
+                        className={`p-2.5 rounded-xl border transition-all ${
+                          speakingSchemeId === scheme.schemeId
+                            ? 'bg-teal-500 border-teal-400 text-white animate-pulse'
+                            : 'bg-zinc-900 border-zinc-850 text-zinc-400 hover:text-white'
+                        }`}
+                        title={speakingSchemeId === scheme.schemeId ? 'Stop Speaking' : 'Read details aloud'}
+                      >
+                        <Volume2 size={16} />
+                      </button>
+                      <div className="relative">
+                        <button
+                          onClick={() => setActiveShareMenu(activeShareMenu === scheme.schemeId ? null : scheme.schemeId)}
+                          className="p-2.5 rounded-xl border bg-zinc-900 border-zinc-850 text-zinc-400 hover:text-white transition-all"
+                          title="Share Scheme"
+                        >
+                          <Share2 size={16} />
+                        </button>
+                        {activeShareMenu === scheme.schemeId && (
+                          <div className="absolute right-0 mt-2 z-50 w-32 bg-zinc-950 border border-zinc-800 rounded-xl shadow-xl p-1 text-[11px] font-bold">
+                            <a 
+                              href={getShareLink(scheme, 'whatsapp')} 
+                              target="_blank" 
+                              className="block px-3 py-2 text-zinc-300 hover:bg-zinc-900 rounded-lg hover:text-white"
+                              onClick={() => setActiveShareMenu(null)}
+                            >
+                              WhatsApp
+                            </a>
+                            <a 
+                              href={getShareLink(scheme, 'telegram')} 
+                              target="_blank" 
+                              className="block px-3 py-2 text-zinc-300 hover:bg-zinc-900 rounded-lg hover:text-white"
+                              onClick={() => setActiveShareMenu(null)}
+                            >
+                              Telegram
+                            </a>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${scheme.title} - ${scheme.whyEligible}. Learn more on Goonj.`);
+                                alert('Link copied to clipboard!');
+                                setActiveShareMenu(null);
+                              }}
+                              className="w-full text-left block px-3 py-2 text-zinc-300 hover:bg-zinc-900 rounded-lg hover:text-white"
+                            >
+                              Copy Details
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Why eligible card */}
-                  <div className="bg-zinc-950/50 border border-zinc-900 rounded-xl p-4 mb-6 text-xs text-zinc-300 leading-relaxed">
-                    <span className="font-extrabold text-white text-[10px] uppercase block tracking-wider mb-1">
+                  <div className="bg-zinc-950/60 border border-zinc-850 rounded-xl p-4 mb-4 text-xs text-zinc-300 leading-relaxed print:bg-zinc-50 print:border-zinc-200 print:text-zinc-800">
+                    <span className="font-extrabold text-white text-[9px] uppercase tracking-wider block mb-1 print:text-zinc-600">
                       Why You Qualify
                     </span>
                     {scheme.whyEligible}
                   </div>
 
                   {/* Benefit highlights */}
-                  <div className="bg-zinc-950/30 border border-zinc-900 rounded-xl p-4 mb-6 text-xs text-zinc-300 leading-relaxed">
-                    <span className="font-extrabold text-white text-[10px] uppercase block tracking-wider mb-1">
-                      Benefit Details
+                  <div className="bg-zinc-950/40 border border-zinc-850 rounded-xl p-4 mb-4 text-xs text-zinc-300 leading-relaxed print:bg-zinc-50 print:border-zinc-200 print:text-zinc-800">
+                    <span className="font-extrabold text-white text-[9px] uppercase tracking-wider block mb-1 print:text-zinc-600">
+                      Benefits Offered
                     </span>
                     {scheme.benefits}
                   </div>
 
                   {/* Step by step checklist timeline */}
                   <div>
-                    <span className="font-extrabold text-white text-xs uppercase block tracking-wider mb-3">
-                      Application Steps Checklist
+                    <span className="font-extrabold text-white text-xs uppercase tracking-wider block mb-3 print:text-zinc-800">
+                      Application steps Checklist
                     </span>
                     
-                    <div className="space-y-2.5">
+                    <div className="space-y-2">
                       {scheme.stepsToApply.map((step, sIdx) => (
-                        <div key={sIdx} className="flex items-start gap-3 bg-zinc-950/20 border border-zinc-900/60 p-3 rounded-lg hover:border-zinc-800/80 transition-colors">
+                        <div key={sIdx} className="flex items-start gap-3 bg-zinc-950/20 border border-zinc-900/60 p-3 rounded-xl hover:border-zinc-850 transition-colors print:border-zinc-150 print:bg-white print:text-zinc-800">
                           <input
                             type="checkbox"
-                            className="mt-0.5 w-4 h-4 rounded border-zinc-800 text-purple-600 focus:ring-0 focus:ring-offset-0 bg-zinc-900 cursor-pointer"
+                            className="mt-0.5 w-4 h-4 rounded border-zinc-800 text-purple-600 bg-zinc-900 cursor-pointer focus:ring-0 print:border-zinc-300 print:bg-zinc-50"
                           />
-                          <span className="text-xs text-zinc-300 font-medium leading-relaxed">
+                          <span className="text-xs text-zinc-300 font-medium leading-relaxed print:text-zinc-800">
                             {step}
                           </span>
                         </div>
                       ))}
                     </div>
                   </div>
+
+                  {/* Feedback widget */}
+                  <div className="border-t border-zinc-900/60 mt-6 pt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-400 print:hidden">
+                    <div className="flex items-center gap-1.5">
+                      <HelpCircle size={14} className="text-purple-400" /> Was this assessment information helpful?
+                    </div>
+                    <div className="flex gap-2">
+                      {feedbackSubmitted[scheme.schemeId] ? (
+                        <span className="text-teal-400 font-semibold flex items-center gap-1">
+                          <Check size={12} /> Thank you for your feedback!
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleFeedback(scheme.schemeId, true)}
+                            className="px-3 py-1 bg-zinc-900 border border-zinc-850 hover:bg-zinc-850 hover:text-white rounded-lg transition-colors"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={() => handleFeedback(scheme.schemeId, false)}
+                            className="px-3 py-1 bg-zinc-900 border border-zinc-850 hover:bg-zinc-850 hover:text-white rounded-lg transition-colors"
+                          >
+                            No
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           )}
+        </main>
+      )}
+
+      {/* User Dashboard Tab */}
+      {activeTab === 'dashboard' && (
+        <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 md:py-12 print:hidden">
+          {user ? (
+            <div className="space-y-8">
+              {/* Profile details summary card */}
+              <div className="glass-panel rounded-2xl p-6 border border-zinc-800 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-28 h-28 bg-purple-500/10 rounded-full blur-2xl" />
+                <div className="flex flex-wrap gap-4 items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-gradient-to-tr from-purple-600 to-teal-500 p-2.5 rounded-2xl">
+                      <User size={24} className="text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">{user.name}</h2>
+                      <p className="text-xs text-zinc-400 flex items-center gap-1">
+                        <Phone size={10} /> {user.phone} • Active Citizen Account
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-6 text-center text-xs">
+                    <div className="bg-zinc-950/60 border border-zinc-900 px-4 py-2.5 rounded-xl">
+                      <div className="font-extrabold text-white text-lg">{savedSchemes.length}</div>
+                      <div className="text-zinc-500 font-semibold uppercase tracking-wider text-[9px] mt-0.5">Saved Schemes</div>
+                    </div>
+                    <div className="bg-zinc-950/60 border border-zinc-900 px-4 py-2.5 rounded-xl">
+                      <div className="font-extrabold text-white text-lg">{searchHistory.length}</div>
+                      <div className="text-zinc-500 font-semibold uppercase tracking-wider text-[9px] mt-0.5">Total Searches</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main dashboard sections grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Bookmarks Column */}
+                <div className="lg:col-span-2 space-y-4">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <Bookmark size={18} className="text-purple-400" /> Saved Welfare Schemes ({savedSchemes.length})
+                  </h3>
+
+                  {isDashLoading ? (
+                    <div className="py-20 flex justify-center text-zinc-400">
+                      <Loader2 className="animate-spin text-purple-400" />
+                    </div>
+                  ) : savedSchemes.length === 0 ? (
+                    <div className="text-center py-16 border border-dashed border-zinc-800 rounded-2xl bg-zinc-950/20 text-zinc-500">
+                      <Bookmark className="mx-auto text-zinc-700 mb-3" size={32} />
+                      <p className="text-xs">No bookmarks saved yet.</p>
+                      <button 
+                        onClick={handleStartChat}
+                        className="mt-3 text-xs text-purple-400 hover:text-purple-300 font-bold"
+                      >
+                        Start voice search
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {savedSchemes.map(sch => (
+                        <div key={sch.id} className="glass-panel glass-panel-hover rounded-xl p-5 border border-zinc-850 flex flex-col justify-between">
+                          <div>
+                            <span className="inline-block px-2 py-0.5 rounded text-[9px] font-bold bg-purple-950 border border-purple-900 text-purple-300 uppercase mb-2">
+                              {sch.state}
+                            </span>
+                            <h4 className="font-bold text-white text-sm line-clamp-1" title={sch.title}>{sch.title}</h4>
+                            <p className="text-zinc-400 text-[11px] line-clamp-2 mt-1 leading-relaxed">{sch.documentUrl || 'Official guideline PDF cataloged.'}</p>
+                          </div>
+                          <div className="flex justify-between items-center mt-4 border-t border-zinc-900 pt-3 text-xs text-zinc-500">
+                            <span>{sch.ministry || 'State Scheme'}</span>
+                            <button
+                              onClick={async () => {
+                                // Load details and matching format
+                                stopSpeaking();
+                                setIsChatLoading(true);
+                                setActiveTab('chat');
+                                try {
+                                  const res = await fetch('/api/chat', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      message: `I need information on ${sch.title}`,
+                                      turnNumber: 8,
+                                      profile: { state: sch.state }
+                                    })
+                                  });
+                                  const data = await res.json();
+                                  if (data.success) {
+                                    setMatchedSchemes(data.schemes || []);
+                                    setChatMessages([
+                                      { role: 'assistant', content: `Here is the assessment details for ${sch.title}.` }
+                                    ]);
+                                    setActiveTab('results');
+                                  }
+                                } catch (e) {
+                                  console.error(e);
+                                  setActiveTab('dashboard');
+                                } finally {
+                                  setIsChatLoading(false);
+                                }
+                              }}
+                              className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-0.5"
+                            >
+                              <Eye size={12} /> View Details
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Search History & Report log Column */}
+                <div className="space-y-6">
+                  {/* Search History list */}
+                  <div className="space-y-4">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <RotateCcw size={16} className="text-purple-400" /> Search History
+                    </h3>
+
+                    {searchHistory.length === 0 ? (
+                      <div className="text-center py-8 border border-dashed border-zinc-900 bg-zinc-950/20 text-zinc-500 rounded-xl text-xs">
+                        No previous searches recorded.
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                        {searchHistory.map((hist, idx) => (
+                          <div key={hist.id || idx} className="bg-zinc-950 border border-zinc-900 p-3.5 rounded-xl hover:border-zinc-800 transition-colors">
+                            <div className="flex justify-between items-center text-[10px] text-zinc-500 font-bold mb-1.5 uppercase">
+                              <span>Query: {hist.query || 'Welfare'}</span>
+                              <span className="uppercase">{hist.detectedLanguage}</span>
+                            </div>
+                            <div className="text-xs text-zinc-300 font-semibold">
+                              Profile: {hist.state} • {hist.age} yrs • {hist.gender} • {hist.occupation}
+                            </div>
+                            <div className="text-[10px] text-zinc-500 mt-2 text-right">
+                              {new Date(hist.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Download Logs */}
+                  <div className="space-y-4 border-t border-zinc-900 pt-6">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <Printer size={16} className="text-purple-400" /> Downloaded Reports
+                    </h3>
+
+                    {downloadedReports.length === 0 ? (
+                      <div className="text-center py-8 border border-dashed border-zinc-900 bg-zinc-950/20 text-zinc-500 rounded-xl text-xs">
+                        No downloaded report logs found.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {downloadedReports.map((rep, idx) => (
+                          <div key={rep.id || idx} className="flex justify-between items-center text-xs bg-zinc-900/40 border border-zinc-850 p-2.5 rounded-xl">
+                            <div className="truncate max-w-[200px]" title={rep.schemeTitle}>
+                              <span className="font-semibold text-white">{rep.schemeTitle}</span>
+                              <span className="block text-[9px] text-zinc-500 uppercase mt-0.5">Language: {rep.language}</span>
+                            </div>
+                            <span className="text-[10px] text-zinc-400 font-medium shrink-0">
+                              {new Date(rep.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-20 glass-panel rounded-3xl p-8 border border-zinc-800 max-w-xl mx-auto w-full">
+              <User size={48} className="text-zinc-700 mx-auto mb-4" />
+              <h2 className="text-xl font-bold text-zinc-300 mb-2">Login Required</h2>
+              <p className="text-zinc-500 text-xs max-w-xs mx-auto mb-6 leading-relaxed">
+                Log in with your name and mobile number to unlock saved schemes, logs history, and download capabilities.
+              </p>
+              <button
+                onClick={() => setShowLoginModal(true)}
+                className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs transition-all"
+              >
+                Log In / Register
+              </button>
+            </div>
+          )}
+        </main>
+      )}
+
+      {/* Main Footer */}
+      <footer className="mt-auto border-t border-zinc-900 bg-zinc-950 py-8 text-center text-xs text-zinc-500 print:hidden">
+        <div className="max-w-6xl mx-auto w-full px-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-1.5 font-bold text-white text-sm">
+            <Sparkles size={14} className="text-purple-400 animate-pulse" /> GOONJ (गूंज)
+          </div>
+          <div className="flex flex-wrap gap-4 justify-center">
+            <a href="#" className="hover:text-zinc-300">About</a>
+            <a href="#" className="hover:text-zinc-300">Privacy Policy</a>
+            <a href="#" className="hover:text-zinc-300">Terms & Conditions</a>
+            <a href="#" className="hover:text-zinc-300">Contact</a>
+            <a href="#" className="hover:text-zinc-300">Feedback</a>
+          </div>
+          <div>
+            &copy; {new Date().getFullYear()} GOONJ Welfare. All rights reserved.
+          </div>
+        </div>
+      </footer>
+
+      {/* Auth / Login Modal */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 print:hidden">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 md:p-8 max-w-md w-full relative overflow-hidden shadow-2xl">
+            <button
+              onClick={() => {
+                setShowLoginModal(false);
+                setAuthError(null);
+              }}
+              className="absolute right-4 top-4 p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="text-center mb-6">
+              <span className="inline-flex p-2.5 bg-purple-950/60 border border-purple-800/40 rounded-2xl text-purple-300 mb-3">
+                <HeartHandshake size={24} />
+              </span>
+              <h3 className="text-xl font-bold text-white">Join Goonj Platform</h3>
+              <p className="text-zinc-400 text-xs mt-1.5">
+                Register or log in using your name and phone number.
+              </p>
+            </div>
+
+            {authError && (
+              <div className="p-3 bg-red-950/20 border border-red-900/50 rounded-xl flex items-center gap-2 text-red-300 text-xs mb-4">
+                <AlertCircle size={14} className="shrink-0" />
+                <span>{authError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={loginName}
+                  onChange={e => setLoginName(e.target.value)}
+                  placeholder="e.g. Ramesh Kumar"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white focus:outline-none focus:border-purple-600"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+                  Mobile Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={loginPhone}
+                  onChange={e => setLoginPhone(e.target.value)}
+                  placeholder="e.g. 9876543210"
+                  maxLength={10}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white focus:outline-none focus:border-purple-600"
+                  required
+                />
+                <span className="text-[10px] text-zinc-500 mt-1 block">A simulated OTP verification will trigger.</span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoggingIn}
+                className="w-full mt-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white font-bold rounded-xl text-xs md:text-sm transition-all shadow-md shadow-purple-900/25 flex items-center justify-center gap-2"
+              >
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" /> Verifying Profile...
+                  </>
+                ) : (
+                  'Authorize Access'
+                )}
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>
