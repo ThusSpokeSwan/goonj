@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { checkIsAdmin } from '@/lib/adminAuth';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     if (!await checkIsAdmin()) {

@@ -1,16 +1,18 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Building, CheckSquare } from 'lucide-react';
+import { Building, CheckSquare, Globe } from 'lucide-react';
 import Link from 'next/link';
 
 interface EligibilityResult {
   schemeId: string;
   title: string;
   ministry: string;
+  description: string;
   whyEligible: string;
   benefits: string;
   stepsToApply: string[];
+  documentUrl?: string | null;
 }
 
 interface UserProfile {
@@ -173,6 +175,9 @@ export default function PrintPage() {
                 <h4 className="text-base font-bold">
                   {index + 1}. {scheme.title}
                 </h4>
+                <p className="text-xs text-zinc-600 mt-2 leading-relaxed italic border-l-2 border-zinc-300 pl-3">
+                  {scheme.description}
+                </p>
               </div>
             </div>
 
@@ -200,6 +205,15 @@ export default function PrintPage() {
                 ))}
               </ul>
             </div>
+
+            {scheme.documentUrl && (
+              <div className="mt-4 pt-3 border-t border-zinc-200 text-xs">
+                <span className="block font-bold text-zinc-700 uppercase text-[9px] tracking-wider mb-1">
+                  Application / Circular Source
+                </span>
+                <span className="font-semibold text-zinc-800">{scheme.documentUrl}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>

@@ -1,7 +1,35 @@
 import { GoogleGenAI, Type } from '@google/genai';
+import fs from 'fs';
+import path from 'path';
 
-function getAIClient() {
-  const key = process.env.GEMINI_API_KEY || '';
+function getApiKeyFromEnvFile(): string {
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      for (const line of envContent.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const firstEq = trimmed.indexOf('=');
+        if (firstEq === -1) continue;
+        const key = trimmed.slice(0, firstEq).trim();
+        if (key === 'GEMINI_API_KEY') {
+          let val = trimmed.slice(firstEq + 1).trim();
+          if (val.startsWith('"') && val.endsWith('"')) {
+            val = val.slice(1, -1);
+          }
+          return val;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to parse .env file for GEMINI_API_KEY:', err);
+  }
+  return process.env.GEMINI_API_KEY || '';
+}
+
+export function getAIClient() {
+  const key = getApiKeyFromEnvFile();
   console.log(`[src/lib/gemini] Active API Key suffix: ...${key.slice(-5)}`);
   return new GoogleGenAI({
     apiKey: key
@@ -151,10 +179,12 @@ export interface EligibilityResult {
   schemeId: string;
   title: string;
   ministry: string;
+  description: string;
   isEligible: boolean;
   whyEligible: string;
   benefits: string;
   stepsToApply: string[];
+  documentUrl?: string | null;
 }
 
 /**
@@ -182,10 +212,10 @@ User Demographics Profile:
 Below are the candidate schemes and the official guideline text chunks retrieved from the database.
 For each scheme, verify if the user truly qualifies based on the demographic and criteria guidelines described in the chunks.
 Important: Focus strictly on the demographic and criteria guidelines (like state, age, gender, income, caste, and student status) to determine eligibility. Stated interests are provided for context, but do NOT mark a user as ineligible ('isEligible': false) just because the scheme's scope doesn't align with their search interests. If they satisfy the demographics and status rules, they are eligible.
-If the user qualifies, output 'isEligible': true. Detail exactly why they qualify, list the benefits, and synthesize a clear step-by-step application instruction checklist.
-If they do not qualify, output 'isEligible': false, and explain which criterion (e.g. income limit, age limit, gender restriction, or state residency) they did not meet. Do not invent or hallucinate restrictions that are not in the provided chunks.
+If the user qualifies, output 'isEligible': true. Detail exactly why they qualify, list the benefits, synthesize a clear step-by-step application instruction checklist, and provide a concise description explaining what the scheme is and its core objectives.
+If they do not qualify, output 'isEligible': false, explain which criterion they did not meet, and provide the concise description explaining the scheme. Do not invent or hallucinate restrictions that are not in the provided chunks.
 
-CRITICAL: Translate all output texts (title, whyEligible, benefits, stepsToApply) into the user's target language: "${targetLanguage}" (e.g. Hindi, Marathi, Telugu, Spanish). 
+CRITICAL: Translate all output texts (title, description, whyEligible, benefits, stepsToApply) into the user's target language: "${targetLanguage}" (e.g. Hindi, Marathi, Telugu, Spanish). 
 If the target language is English or not supported, output in the requested language but use clear and accessible phrasing.
 
 Candidate Schemes:
@@ -215,6 +245,7 @@ Format your output as a JSON list matching the schema.
               schemeId: { type: Type.STRING },
               title: { type: Type.STRING },
               ministry: { type: Type.STRING },
+              description: { type: Type.STRING },
               isEligible: { type: Type.BOOLEAN },
               whyEligible: { type: Type.STRING },
               benefits: { type: Type.STRING },
@@ -223,7 +254,7 @@ Format your output as a JSON list matching the schema.
                 items: { type: Type.STRING }
               }
             },
-            required: ['schemeId', 'title', 'isEligible', 'whyEligible', 'benefits', 'stepsToApply']
+            required: ['schemeId', 'title', 'isEligible', 'whyEligible', 'benefits', 'stepsToApply', 'description']
           }
         }
       }

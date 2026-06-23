@@ -5,6 +5,8 @@ import { extractTextFromPdf, extractTextFromUrl, chunkText } from '@/lib/parser'
 import { getEmbedding } from '@/lib/gemini';
 import { checkIsAdmin } from '@/lib/adminAuth';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/schemes
  * Returns a list of all schemes registered in the SQLite database.

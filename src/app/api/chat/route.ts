@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
 import { prisma } from '@/lib/db';
 import { LocalVectorStore } from '@/lib/vectorStore';
-import { getEmbedding, synthesizeEligibility, EligibilityResult } from '@/lib/gemini';
+import { getEmbedding, synthesizeEligibility, EligibilityResult, getAIClient } from '@/lib/gemini';
 import { getOrCreateDbUser } from '@/lib/auth';
 
-function getAIClient() {
-  const key = process.env.GEMINI_API_KEY || '';
-  console.log(`[getAIClient] Active API Key suffix: ...${key.slice(-5)}`);
-  return new GoogleGenAI({
-    apiKey: key
-  });
-}
+export const dynamic = 'force-dynamic';
 
 interface ChatTurn {
   role: 'user' | 'assistant';
@@ -83,10 +77,10 @@ Current Turn Number: ${turnNumber} (Max allowed questions: 8)
 Established Language: ${turnNumber > 1 ? detectedLanguage : 'Not yet established'}
 
 Instructions:
-1. ${turnNumber === 1 
-      ? 'Detect the citizen\'s primary spoken language (e.g. Hindi, English, Bhojpuri, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia) from this first input, and save to "detectedLanguage".' 
-      : `Do NOT attempt to guess or change the language. The language has already been established as "${detectedLanguage}". Strictly save "${detectedLanguage}" to "detectedLanguage".`
-   }
+1. ${turnNumber === 1
+        ? 'Detect the citizen\'s primary spoken language (e.g. Hindi, English, Bhojpuri, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia) from this first input, and save to "detectedLanguage".'
+        : `Do NOT attempt to guess or change the language. The language has already been established as "${detectedLanguage}". Strictly save "${detectedLanguage}" to "detectedLanguage".`
+      }
 2. If possible, detect the specific dialect (e.g. Bhojpuri, Maithili, Magahi, standard Hindi, etc.) and save to "dialect".
 3. Extract any new details from the latest citizen input and merge them into the profile. Ensure age and annualIncome are numbers. For state, map to standardized English names. If caste is mentioned (like SC, ST, OBC), categorize appropriately.
 4. For any fields that have not been provided or cannot be inferred yet, strictly use their existing value from the Current Accumulated Profile.
@@ -122,7 +116,7 @@ Instructions:
             attempts++;
             lastError = err;
             console.warn(`[POST /api/chat] Model ${model} failed (attempt ${attempts}):`, err.message || err);
-            
+
             const errStr = String(err.message || err);
             const isTransient = errStr.includes('503') || errStr.includes('429') || errStr.includes('UNAVAILABLE') || err.status === 503;
             if (isTransient) {
@@ -224,17 +218,17 @@ Instructions:
       const fullyMatchingSchemes = candidateSchemes.filter(scheme => {
         if (scheme.occupations && scheme.occupations.trim() !== '') {
           const allowedOccupations = scheme.occupations.toLowerCase().split(',').map(o => o.trim());
-          const hasMatchingJob = allowedOccupations.includes(userOccupation) || 
-                                 allowedOccupations.includes('all') || 
-                                 allowedOccupations.length === 0;
+          const hasMatchingJob = allowedOccupations.includes(userOccupation) ||
+            allowedOccupations.includes('all') ||
+            allowedOccupations.length === 0;
           if (!hasMatchingJob) return false;
         }
 
         if (scheme.casteCategories && scheme.casteCategories.trim() !== '') {
           const allowedCastes = scheme.casteCategories.toLowerCase().split(',').map(c => c.trim());
-          const hasMatchingCaste = allowedCastes.includes(userCaste) || 
-                                   allowedCastes.includes('all') || 
-                                   allowedCastes.length === 0;
+          const hasMatchingCaste = allowedCastes.includes(userCaste) ||
+            allowedCastes.includes('all') ||
+            allowedCastes.length === 0;
           if (!hasMatchingCaste) return false;
         }
 
@@ -279,7 +273,14 @@ Instructions:
           detectedLanguage
         );
 
-        qualifyingSchemes = eligibilityResults.filter(r => r.isEligible);
+        const evaluatedResults = eligibilityResults.filter(r => r.isEligible);
+        qualifyingSchemes = evaluatedResults.map(qs => {
+          const dbScheme = fullyMatchingSchemes.find(s => s.id === qs.schemeId);
+          return {
+            ...qs,
+            documentUrl: dbScheme?.documentUrl || null
+          };
+        });
       }
 
       // Check if logged in to save history

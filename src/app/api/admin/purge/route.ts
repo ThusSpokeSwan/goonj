@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db';
 import { LocalVectorStore } from '@/lib/vectorStore';
 import { checkIsAdmin } from '@/lib/adminAuth';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/purge
  * Periodically cleans up the databases by removing expired schemes and their vectors.
