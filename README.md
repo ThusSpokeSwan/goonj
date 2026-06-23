@@ -20,7 +20,7 @@ Goonj is a modern, accessible, and intelligent web application designed to help 
 ## 📂 Project Structure
 
 ```
-d:\day3\app
+d:\goonj
 ├── prisma
 │   ├── dev.db                      # Local SQLite backup (deprecated in production)
 │   ├── schema.prisma               # Prisma DB schema definitions (PostgreSQL provider)
