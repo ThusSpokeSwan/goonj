@@ -137,7 +137,7 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 
 # Admin Secrets
-ADMIN_SECRET_KEY="GoonjAdminSecr3tK3y2026"
+ADMIN_SECRET_KEY="GoonjAdmin...."
 ```
 
 ### 3. Setup Commands
