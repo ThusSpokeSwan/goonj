@@ -20,7 +20,7 @@ Goonj is a modern, accessible, and intelligent web application designed to help 
 ## 📂 Project Structure
 
 ```
-d:\day3\app
+d:\goonj
 ├── prisma
 │   ├── dev.db                      # Local SQLite backup (deprecated in production)
 │   ├── schema.prisma               # Prisma DB schema definitions (PostgreSQL provider)
@@ -137,7 +137,7 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 
 # Admin Secrets
-ADMIN_SECRET_KEY="GoonjAdminSecr3tK3y2026"
+ADMIN_SECRET_KEY="GoonjAdmin...."
 ```
 
 ### 3. Setup Commands
