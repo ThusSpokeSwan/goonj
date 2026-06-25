@@ -93,7 +93,8 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       console.error(err);
-      showNotification('Network error fetching schemes list.', true);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      showNotification(`Network/Parse Error: ${errMsg}`, true);
     } finally {
       setLoading(false);
     }
@@ -111,7 +112,8 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       console.error(err);
-      showNotification('Network error fetching analytics.', true);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      showNotification(`Network/Parse Error: ${errMsg}`, true);
     } finally {
       setAnalyticsLoading(false);
     }
