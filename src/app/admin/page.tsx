@@ -74,6 +74,12 @@ export default function AdminDashboard() {
   const [linkUrl, setLinkUrl] = useState('');
   const [applyUrl, setApplyUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(schemes.length / itemsPerPage);
+  const activePage = Math.min(currentPage, Math.max(totalPages, 1));
+  const startIndex = (activePage - 1) * itemsPerPage;
+  const paginatedSchemes = schemes.slice(startIndex, startIndex + itemsPerPage);
 
   const fetchSchemes = async () => {
     try {
@@ -848,88 +854,122 @@ export default function AdminDashboard() {
               <p className="text-[10px] mt-1">Fill out the ingestion builder to feed guidelines.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-900 text-zinc-500 text-[10px] font-bold uppercase tracking-wider">
-                    <th className="pb-3 pr-2">Scheme Name</th>
-                    <th className="pb-3 px-2">Scope / Status</th>
-                    <th className="pb-3 px-2">Criteria Range</th>
-                    <th className="pb-3 px-2">Validity</th>
-                    <th className="pb-3 pl-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-900/40">
-                  {schemes.map(sch => (
-                    <tr key={sch.id} className="text-zinc-300 hover:bg-zinc-900/20 transition-colors">
-                      <td className="py-4 pr-4 font-semibold text-white max-w-[200px]">
-                        <div className="truncate text-xs font-bold" title={sch.title}>{sch.title}</div>
-                        <div className="text-[9px] text-zinc-550 truncate mt-0.5" title={sch.documentUrl || ''}>{sch.documentUrl}</div>
-                        {sch.applyUrl && (
-                          <div className="text-[9px] text-teal-400 font-semibold truncate mt-0.5" title={sch.applyUrl}>
-                            Apply URL: {sch.applyUrl}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-4 px-2">
-                        <span className="inline-block px-1.5 py-0.5 rounded text-[8px] font-extrabold bg-zinc-900 text-zinc-450 border border-zinc-800 mr-1">
-                          {sch.state}
-                        </span>
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-extrabold border ${
-                          sch.isActive 
-                            ? 'bg-teal-950/40 border-teal-800/40 text-teal-400' 
-                            : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-                        }`}>
-                          {sch.isActive ? 'Active' : 'Expired'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-2 text-[10px] text-zinc-400">
-                        <div>
-                          Age:{' '}
-                          {sch.minAge !== null || sch.maxAge !== null
-                            ? `${sch.minAge || '0'}-${sch.maxAge || '∞'}`
-                            : 'All ages'}
-                        </div>
-                        <div className="text-zinc-550 text-[9px] mt-0.5">
-                          Income Ceiling:{' '}
-                          {sch.incomeCeiling !== null
-                            ? `₹${sch.incomeCeiling.toLocaleString()}`
-                            : 'None'}
-                        </div>
-                      </td>
-                      <td className="py-4 px-2 text-[10px] text-zinc-400">
-                        {sch.expiryDate ? (
-                          <span className={`${
-                            new Date(sch.expiryDate) < new Date() ? 'text-red-400 font-bold' : 'text-zinc-500'
-                          }`}>
-                            {new Date(sch.expiryDate).toLocaleDateString()}
-                          </span>
-                        ) : (
-                          <span className="text-zinc-650">Never</span>
-                        )}
-                      </td>
-                      <td className="py-4 pl-2 text-right">
-                        <div className="flex gap-1 justify-end">
-                          <button
-                            onClick={() => handleEditClick(sch)}
-                            className="p-1.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all"
-                            title="Edit Scheme Details"
-                          >
-                            <Edit2 size={11} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteScheme(sch.id)}
-                            className="p-1.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-950 transition-all"
-                            title="Delete Scheme permanently"
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                      </td>
+            <div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-zinc-900 text-zinc-500 text-[10px] font-bold uppercase tracking-wider">
+                      <th className="pb-3 pr-2">Scheme Name</th>
+                      <th className="pb-3 px-2">Scope / Status</th>
+                      <th className="pb-3 px-2">Criteria Range</th>
+                      <th className="pb-3 px-2">Validity</th>
+                      <th className="pb-3 pl-2 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-900/40">
+                    {paginatedSchemes.map(sch => (
+                      <tr key={sch.id} className="text-zinc-300 hover:bg-zinc-900/20 transition-colors">
+                        <td className="py-4 pr-4 font-semibold text-white max-w-[200px]">
+                          <div className="truncate text-xs font-bold" title={sch.title}>{sch.title}</div>
+                          <div className="text-[9px] text-zinc-550 truncate mt-0.5" title={sch.documentUrl || ''}>{sch.documentUrl}</div>
+                          {sch.applyUrl && (
+                            <div className="text-[9px] text-teal-400 font-semibold truncate mt-0.5" title={sch.applyUrl}>
+                              Apply URL: {sch.applyUrl}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-4 px-2">
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[8px] font-extrabold bg-zinc-900 text-zinc-450 border border-zinc-800 mr-1">
+                            {sch.state}
+                          </span>
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-extrabold border ${
+                            sch.isActive 
+                              ? 'bg-teal-950/40 border-teal-800/40 text-teal-400' 
+                              : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                          }`}>
+                            {sch.isActive ? 'Active' : 'Expired'}
+                          </span>
+                        </td>
+                        <td className="py-4 px-2 text-[10px] text-zinc-400">
+                          <div>
+                            Age:{' '}
+                            {sch.minAge !== null || sch.maxAge !== null
+                              ? `${sch.minAge || '0'}-${sch.maxAge || '∞'}`
+                              : 'All ages'}
+                          </div>
+                          <div className="text-zinc-550 text-[9px] mt-0.5">
+                            Income Ceiling:{' '}
+                            {sch.incomeCeiling !== null
+                              ? `₹${sch.incomeCeiling.toLocaleString()}`
+                              : 'None'}
+                          </div>
+                        </td>
+                        <td className="py-4 px-2 text-[10px] text-zinc-400">
+                          {sch.expiryDate ? (
+                            <span className={`${
+                              new Date(sch.expiryDate) < new Date() ? 'text-red-400 font-bold' : 'text-zinc-500'
+                            }`}>
+                              {new Date(sch.expiryDate).toLocaleDateString()}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-650">Never</span>
+                          )}
+                        </td>
+                        <td className="py-4 pl-2 text-right">
+                          <div className="flex gap-1 justify-end">
+                            <button
+                              onClick={() => handleEditClick(sch)}
+                              className="p-1.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all"
+                              title="Edit Scheme Details"
+                            >
+                              <Edit2 size={11} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteScheme(sch.id)}
+                              className="p-1.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-950 transition-all"
+                              title="Delete Scheme permanently"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination controls */}
+              {totalPages > 1 && (
+                <div className="mt-6 pt-4 border-t border-zinc-900/60 flex items-center justify-between text-xs">
+                  <div className="text-zinc-500">
+                    Showing <span className="text-zinc-300 font-bold">{startIndex + 1}</span> to{' '}
+                    <span className="text-zinc-300 font-bold">
+                      {Math.min(startIndex + itemsPerPage, schemes.length)}
+                    </span>{' '}
+                    of <span className="text-zinc-300 font-bold">{schemes.length}</span> schemes
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={activePage === 1}
+                      className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-850 transition-colors font-bold"
+                    >
+                      &larr; Previous
+                    </button>
+                    <span className="px-3 py-1.5 text-zinc-400 font-medium">
+                      Page {activePage} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={activePage === totalPages}
+                      className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-850 transition-colors font-bold"
+                    >
+                      Next &rarr;
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
