@@ -75,12 +75,12 @@ d:\goonj
 ```mermaid
 flowchart TB
     %% User Discovery Flow
-    User([Citizen / User]) <-->|Voice Interview / Audio Playback| BrowserClient[Web Browser Client]
+    User["Citizen / User"] -->|"Voice Interview / Audio Playback"| BrowserClient["Web Browser Client"]
 
     subgraph BrowserClient ["Web Browser Client"]
-        UI[Goonj UI - React/Next.js]
-        STT[Web Speech API - Speech-to-Text]
-        TTS[Web Speech API - Text-to-Speech]
+        UI["Goonj UI - React/Next.js"]
+        STT["Web Speech API - Speech-to-Text"]
+        TTS["Web Speech API - Text-to-Speech"]
         UI --> STT
         TTS --> UI
     end
@@ -92,53 +92,53 @@ flowchart TB
     end
 
     subgraph ExternalServices ["External AI & Auth Services"]
-        Clerk[Clerk Auth Service]
-        GeminiLLM[Gemini API - gemini-2.5-flash]
-        GeminiEmbed[Gemini API - gemini-embedding-2]
+        Clerk["Clerk Auth Service"]
+        GeminiLLM["Gemini API - gemini-2.5-flash"]
+        GeminiEmbed["Gemini API - gemini-embedding-2"]
     end
 
     subgraph Database ["Supabase PostgreSQL DB"]
-        Postgres[(PostgreSQL Tables)]
+        Postgres["Supabase PostgreSQL Tables"]
         VectorStore["Prisma Vector Table (SchemeVector)"]
     end
 
     %% Auth connection
-    UI <-->|Verify Session / Token| Clerk
+    UI -->|"Verify Session / Token"| Clerk
 
     %% User Match pipeline steps
-    UI -->|1. Submit Voice Answers| MatchAPI
+    UI -->|"1. Submit Voice Answers"| MatchAPI
     
-    MatchAPI -->|2. Structured Parsing| GeminiLLM
-    GeminiLLM -->|Demographics & Needs Query| MatchAPI
+    MatchAPI -->|"2. Structured Parsing"| GeminiLLM
+    GeminiLLM -->|"Demographics & Needs Query"| MatchAPI
     
-    MatchAPI -->|3. Strict Filter Query| Postgres
-    Postgres -->|Surviving Candidate Schemes| MatchAPI
+    MatchAPI -->|"3. Strict Filter Query"| Postgres
+    Postgres -->|"Surviving Candidate Schemes"| MatchAPI
     
-    MatchAPI -->|4. Generate Query Vector| GeminiEmbed
-    GeminiEmbed -->|Query Embedding| MatchAPI
+    MatchAPI -->|"4. Generate Query Vector"| GeminiEmbed
+    GeminiEmbed -->|"Query Embedding"| MatchAPI
     
-    MatchAPI -->|5. Fetch Chunk Vectors| VectorStore
-    VectorStore -->|Embeddings| MatchAPI
-    MatchAPI -->|6. Local Cosine Similarity Matching| MatchAPI
+    MatchAPI -->|"5. Fetch Chunk Vectors"| VectorStore
+    VectorStore -->|"Embeddings"| MatchAPI
+    MatchAPI -->|"6. Local Cosine Similarity Matching"| MatchAPI
     
-    MatchAPI -->|7. Synthesis & Translation Request| GeminiLLM
-    GeminiLLM -->|Eligible Benefits & Steps (Hindi, etc.)| MatchAPI
+    MatchAPI -->|"7. Synthesis & Translation Request"| GeminiLLM
+    GeminiLLM -->|"Eligible Benefits & Steps (Hindi, etc.)"| MatchAPI
     
-    MatchAPI -->|8. Matching Results JSON| UI
-    UI -->|Synthesize Speech| TTS
+    MatchAPI -->|"8. Matching Results JSON"| UI
+    UI -->|"Synthesize Speech"| TTS
 
     %% Admin Ingestion pipeline steps
-    Admin([Administrator]) -->|Guideline PDF / Web Link URL| UI
-    UI -->|Upload Document / URL| AdminAPI
+    Admin["Administrator"] -->|"Guideline PDF / Web Link URL"| UI
+    UI -->|"Upload Document / URL"| AdminAPI
     
-    AdminAPI -->|Extract Raw Text| Parser["pdf-parse / axios crawl"]
-    Parser -->|Raw Guidelines Text| AdminAPI
+    AdminAPI -->|"Extract Raw Text"| Parser["pdf-parse / axios crawl"]
+    Parser -->|"Raw Guidelines Text"| AdminAPI
     
-    AdminAPI -->|Save Metadata| Postgres
-    AdminAPI -->|Chunk Text & Embed| GeminiEmbed
-    GeminiEmbed -->|Chunk Vectors| AdminAPI
+    AdminAPI -->|"Save Metadata"| Postgres
+    AdminAPI -->|"Chunk Text & Embed"| GeminiEmbed
+    GeminiEmbed -->|"Chunk Vectors"| AdminAPI
     
-    AdminAPI -->|Save Chunks & Vectors| VectorStore
+    AdminAPI -->|"Save Chunks & Vectors"| VectorStore
 ```
 
 ---
