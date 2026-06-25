@@ -32,11 +32,11 @@ export async function extractTextFromUrl(url: string): Promise<string> {
         rejectUnauthorized: false,
       }),
     });
-    
+
     if (typeof response.data !== 'string') {
       throw new Error('Received non-HTML response from URL.');
     }
-    
+
     const text = convert(response.data, {
       wordwrap: 120,
       selectors: [
@@ -50,7 +50,7 @@ export async function extractTextFromUrl(url: string): Promise<string> {
         { selector: 'iframe', format: 'skip' }
       ]
     });
-    
+
     return text || '';
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -81,7 +81,7 @@ export function chunkText(text: string, chunkSize: number = 800, overlap: number
       if (currentChunk) {
         chunks.push(currentChunk);
       }
-      
+
       // If the individual paragraph itself is massive, slice it using a sliding window
       if (trimmed.length > chunkSize) {
         let start = 0;
@@ -96,10 +96,10 @@ export function chunkText(text: string, chunkSize: number = 800, overlap: number
       }
     }
   }
-  
+
   if (currentChunk) {
     chunks.push(currentChunk);
   }
-  
+
   return chunks;
 }
