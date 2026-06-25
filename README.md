@@ -86,9 +86,9 @@ flowchart TB
     end
 
     subgraph NextServer ["Next.js Server API Layer"]
-        MatchAPI[/api/match]
-        ChatAPI[/api/chat]
-        AdminAPI[/api/admin/schemes]
+        MatchAPI["/api/match"]
+        ChatAPI["/api/chat"]
+        AdminAPI["/api/admin/schemes"]
     end
 
     subgraph ExternalServices ["External AI & Auth Services"]
@@ -131,7 +131,7 @@ flowchart TB
     Admin([Administrator]) -->|Guideline PDF / Web Link URL| UI
     UI -->|Upload Document / URL| AdminAPI
     
-    AdminAPI -->|Extract Raw Text| Parser[pdf-parse / axios crawl]
+    AdminAPI -->|Extract Raw Text| Parser["pdf-parse / axios crawl"]
     Parser -->|Raw Guidelines Text| AdminAPI
     
     AdminAPI -->|Save Metadata| Postgres
