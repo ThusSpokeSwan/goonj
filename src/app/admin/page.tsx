@@ -88,9 +88,12 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (data.success) {
         setSchemes(data.schemes);
+      } else {
+        showNotification(data.error || 'Failed to retrieve schemes list.', true);
       }
     } catch (err) {
       console.error(err);
+      showNotification('Network error fetching schemes list.', true);
     } finally {
       setLoading(false);
     }
@@ -103,9 +106,12 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (data.success) {
         setAnalytics(data.stats);
+      } else {
+        showNotification(data.error || 'Failed to retrieve analytics data.', true);
       }
     } catch (err) {
       console.error(err);
+      showNotification('Network error fetching analytics.', true);
     } finally {
       setAnalyticsLoading(false);
     }
