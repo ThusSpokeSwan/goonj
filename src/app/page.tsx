@@ -335,22 +335,6 @@ export default function GoonjPortal() {
 
   return (
     <div className={`min-h-screen flex flex-col font-sans selection:bg-orange-200 selection:text-slate-900 transition-all duration-300 ${largeText ? 'large-text' : ''} ${highContrast ? 'high-contrast' : ''}`}>
-      
-      {/* Floating Accessibility Settings Widget */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 bg-white/95 border border-slate-200 p-3 rounded-2xl shadow-2xl backdrop-blur-xl print:hidden">
-        <div className="text-[10px] uppercase font-bold text-slate-400 tracking-widest text-center border-b border-slate-100 pb-2 mb-1">
-          Accessibility
-        </div>
-        <button onClick={() => setLargeText(!largeText)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${largeText ? 'bg-orange-500 text-white shadow-md' : 'bg-slate-50 text-slate-600 hover:text-orange-500 hover:bg-orange-50 border border-slate-200'}`}>
-          Text Size: {largeText ? 'Large' : 'Normal'}
-        </button>
-        <button onClick={() => setHighContrast(!highContrast)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${highContrast ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-50 text-slate-600 hover:text-orange-500 hover:bg-orange-50 border border-slate-200'}`}>
-          Contrast: {highContrast ? 'High' : 'Normal'}
-        </button>
-        <button onClick={() => { setVoiceNav(!voiceNav); if (!voiceNav) speakText('Voice navigation enabled.'); else speakText('Voice navigation disabled'); }} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${voiceNav ? 'bg-emerald-500 text-white shadow-md animate-pulse' : 'bg-slate-50 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200'}`}>
-          <Mic size={12} /> Voice Nav: {voiceNav ? 'On' : 'Off'}
-        </button>
-      </div>
 
       {/* Main Header / Navigation Bar (Height reduced) */}
       <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${activeTab === 'home' ? 'bg-slate-900/50 backdrop-blur-md border-b border-white/10' : 'bg-white/80 border-b border-slate-200/60 backdrop-blur-xl'} print:hidden`}>
