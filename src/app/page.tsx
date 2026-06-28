@@ -920,7 +920,7 @@ export default function GoonjPortal() {
                       <User size={40} className="text-orange-400" />
                     </div>
                     <div>
-                      <h2 className="text-3xl font-black">{user.name}</h2>
+                      <h2 className="text-3xl text-black">{user.name}</h2>
                       <p className="text-sm text-slate-400 flex items-center gap-2 font-medium mt-2">
                         <Phone size={14} /> {user.phone} • Verified Citizen
                       </p>
