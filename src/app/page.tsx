@@ -422,7 +422,7 @@ export default function GoonjPortal() {
               className="relative z-10 max-w-5xl mx-auto px-6 text-center flex flex-col items-center justify-center h-full"
             >
               <motion.span variants={fadeUp} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold bg-white/10 border border-white/20 text-orange-400 mb-6 backdrop-blur-md">
-                <Sparkles size={14} /> Built for the citizens of India
+                Built for the citizens of India
               </motion.span>
 
               <motion.h1 variants={fadeUp} className="text-4xl md:text-5xl lg:text-7xl font-black tracking-tight text-white leading-[1.1] mb-4 drop-shadow-lg">
@@ -608,8 +608,8 @@ export default function GoonjPortal() {
                         onClick={() => toggleRecordingForField(null)}
                         disabled={!speechSupported || isChatLoading}
                         className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-xl ring-4 ring-white ${isRecording && currentlyRecordingField === null
-                            ? 'bg-gradient-to-br from-red-500 to-red-600 text-white animate-voice-pulse'
-                            : 'bg-gradient-to-br from-slate-900 to-slate-700 text-white hover:from-orange-500 hover:to-orange-600 hover:scale-110 disabled:opacity-50 disabled:hover:scale-100'
+                          ? 'bg-gradient-to-br from-red-500 to-red-600 text-white animate-voice-pulse'
+                          : 'bg-gradient-to-br from-slate-900 to-slate-700 text-white hover:from-orange-500 hover:to-orange-600 hover:scale-110 disabled:opacity-50 disabled:hover:scale-100'
                           }`}
                       >
                         {isRecording && currentlyRecordingField === null ? <MicOff size={30} /> : <Mic size={30} />}
@@ -703,8 +703,8 @@ export default function GoonjPortal() {
                           onClick={() => toggleRecordingForField(i)}
                           disabled={isMatchingLoading || !speechSupported}
                           className={`p-3.5 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-sm border ${isRecording && currentlyRecordingField === i
-                              ? 'bg-red-500 text-white border-red-600 animate-pulse'
-                              : 'bg-slate-900 text-white border-slate-900 hover:bg-orange-500 hover:border-orange-500'
+                            ? 'bg-red-500 text-white border-red-600 animate-pulse'
+                            : 'bg-slate-900 text-white border-slate-900 hover:bg-orange-500 hover:border-orange-500'
                             }`}
                         >
                           {isRecording && currentlyRecordingField === i ? <MicOff size={18} /> : <Mic size={18} />}
@@ -926,16 +926,16 @@ export default function GoonjPortal() {
                       </p>
                     </div>
                   </div>
-<div className="flex gap-4 text-center text-sm">
-  <div className="bg-white px-8 py-5 rounded-2xl min-w-[130px] shadow-xl shadow-black/10 border border-white/20">
-    <div className="font-black text-4xl text-slate-900">{savedSchemes.length}</div>
-    <div className="text-orange-500 font-bold uppercase tracking-widest text-[10px] mt-2">Saved</div>
-  </div>
-  <div className="bg-white px-8 py-5 rounded-2xl min-w-[130px] shadow-xl shadow-black/10 border border-white/20">
-    <div className="font-black text-4xl text-slate-900">{searchHistory.length}</div>
-    <div className="text-orange-500 font-bold uppercase tracking-widest text-[10px] mt-2">Searches</div>
-  </div>
-</div>
+                  <div className="flex gap-4 text-center text-sm">
+                    <div className="bg-white px-8 py-5 rounded-2xl min-w-[130px] shadow-xl shadow-black/10 border border-white/20">
+                      <div className="font-black text-4xl text-slate-900">{savedSchemes.length}</div>
+                      <div className="text-orange-500 font-bold uppercase tracking-widest text-[10px] mt-2">Saved</div>
+                    </div>
+                    <div className="bg-white px-8 py-5 rounded-2xl min-w-[130px] shadow-xl shadow-black/10 border border-white/20">
+                      <div className="font-black text-4xl text-slate-900">{searchHistory.length}</div>
+                      <div className="text-orange-500 font-bold uppercase tracking-widest text-[10px] mt-2">Searches</div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
